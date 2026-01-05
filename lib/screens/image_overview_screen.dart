@@ -69,20 +69,20 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
       color: Colors.white,
       child: Row(
         children: [
-          // Cycle filter
+          // Pump Cycle filter
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Cycle',
+                  'Pump Cycle',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 _buildDropdown(
                   value: provider.filters.cycle,
-                  items: provider.availableCycles,
-                  hint: 'Select cycle',
+                  items: provider.availableCycles.reversed.toList(),
+                  hint: 'Select pump cycle',
                   onChanged: (value) {
                     provider.setCycleFilter(value);
                   },
@@ -97,13 +97,13 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Filter_Exposure Time',
+                  'Exposure Time',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 _buildDropdown(
                   value: provider.filters.exposureTime,
-                  items: provider.availableExposureTimes,
+                  items: provider.availableExposureTimes.reversed.toList(),
                   hint: 'Select exposure time',
                   onChanged: (value) {
                     provider.setExposureTimeFilter(value);
@@ -137,16 +137,10 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
           value: value,
           hint: Text(hint, style: TextStyle(color: Colors.grey.shade600)),
           isExpanded: true,
-          items: [
-            DropdownMenuItem<int?>(
-              value: null,
-              child: Text('All', style: TextStyle(color: Colors.grey.shade600)),
-            ),
-            ...items.map((item) => DropdownMenuItem<int?>(
-                  value: item,
-                  child: Text(item.toString()),
-                )),
-          ],
+          items: items.map((item) => DropdownMenuItem<int?>(
+                value: item,
+                child: Text(item.toString()),
+              )).toList(),
           onChanged: onChanged,
         ),
       ),
@@ -165,22 +159,23 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
     final imagesByRow = provider.images.groupByRow();
     final rows = imagesByRow.keys.toList()..sort();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: rows.map((rowNumber) {
-          final rowImages = imagesByRow[rowNumber]!;
-          // Sort by column
-          rowImages.sort((a, b) => a.column.compareTo(b.column));
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: rows.map((rowNumber) {
+            final rowImages = imagesByRow[rowNumber]!;
+            // Sort by column
+            rowImages.sort((a, b) => a.column.compareTo(b.column));
 
-          return Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Row number label
                 SizedBox(
                   width: 40,
+                  height: 274, // 250px cell + 12px top margin + 12px bottom margin
                   child: Center(
                     child: Text(
                       rowNumber.toString(),
@@ -193,23 +188,26 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
                   ),
                 ),
                 // Images in this row
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: rowImages.map((image) {
-                      return Expanded(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: rowImages.map((image) {
+                    return Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 250,
+                        height: 250,
                         child: ImageGridCell(
                           image: image,
                           showLabel: rowNumber == 1,
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

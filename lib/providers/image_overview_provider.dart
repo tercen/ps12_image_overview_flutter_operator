@@ -9,6 +9,7 @@ class ImageOverviewProvider extends ChangeNotifier {
   final ImageService _imageService = locator<ImageService>();
 
   ImageCollection _images = const ImageCollection(images: []);
+  ImageCollection _allImages = const ImageCollection(images: []); // Store all images for filter options
   FilterCriteria _filters = const FilterCriteria();
   bool _isLoading = false;
   String? _error;
@@ -18,20 +19,31 @@ class ImageOverviewProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  /// Gets available cycle options from loaded images.
-  List<int> get availableCycles => _images.uniqueCycles;
+  /// Gets available cycle options from ALL images (not just filtered).
+  List<int> get availableCycles => _allImages.uniqueCycles;
 
-  /// Gets available exposure time options from loaded images.
-  List<int> get availableExposureTimes => _images.uniqueExposureTimes;
+  /// Gets available exposure time options from ALL images (not just filtered).
+  List<int> get availableExposureTimes => _allImages.uniqueExposureTimes;
 
   /// Loads images from the service.
+  /// On initial load, defaults to highest cycle and highest exposure time.
   Future<void> loadImages() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _images = await _imageService.loadImages();
+      _allImages = await _imageService.loadImages();
+
+      // On initial load, default to highest cycle and highest exposure time
+      final cycles = _allImages.uniqueCycles;
+      final exposureTimes = _allImages.uniqueExposureTimes;
+
+      _filters = FilterCriteria(
+        cycle: cycles.isNotEmpty ? cycles.last : null, // Last is highest after sort
+        exposureTime: exposureTimes.isNotEmpty ? exposureTimes.last : null,
+      );
+      _images = await _imageService.filterImages(_filters);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -47,12 +59,9 @@ class ImageOverviewProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (filters.hasActiveFilters) {
-        _images = await _imageService.filterImages(filters);
-      } else {
-        // If no filters, load all images
-        _images = await _imageService.loadImages();
-      }
+      // Always filter through service to get proper grid representation
+      // Even with no filters, this returns "all cycles combined" view
+      _images = await _imageService.filterImages(filters);
     } catch (e) {
       _error = e.toString();
     } finally {
