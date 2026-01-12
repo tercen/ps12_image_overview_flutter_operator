@@ -57,3 +57,6 @@ app.*.map.json
 
 # Temporary files
 nul
+
+# Technical specification
+FLUTTER_TECHNICAL_SPECIFICATION.md

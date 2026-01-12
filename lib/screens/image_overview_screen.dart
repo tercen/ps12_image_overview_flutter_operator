@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ps12_image_overview/providers/image_overview_provider.dart';
+import 'package:ps12_image_overview/providers/theme_provider.dart';
 import 'package:ps12_image_overview/widgets/image_grid_cell.dart';
 
 /// Main screen displaying the image overview with filters and grid.
@@ -29,6 +30,21 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
         backgroundColor: const Color(0xFF005f75),
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, child) {
+              return IconButton(
+                icon: Icon(
+                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                ),
+                tooltip: themeProvider.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+                onPressed: () {
+                  themeProvider.toggleTheme();
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<ImageOverviewProvider>(
         builder: (context, provider, child) {
@@ -66,7 +82,7 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
       BuildContext context, ImageOverviewProvider provider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: Colors.white,
+      color: Theme.of(context).cardColor,
       child: Row(
         children: [
           // Pump Cycle filter
@@ -125,21 +141,36 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
     required String hint,
     required void Function(int?) onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+        ),
         borderRadius: BorderRadius.circular(4),
-        color: Colors.white,
+        color: isDark ? Colors.grey.shade800 : Colors.white,
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int?>(
           value: value,
-          hint: Text(hint, style: TextStyle(color: Colors.grey.shade600)),
+          hint: Text(
+            hint,
+            style: TextStyle(
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+          ),
           isExpanded: true,
+          dropdownColor: isDark ? Colors.grey.shade800 : Colors.white,
           items: items.map((item) => DropdownMenuItem<int?>(
                 value: item,
-                child: Text(item.toString()),
+                child: Text(
+                  item.toString(),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
               )).toList(),
           onChanged: onChanged,
         ),

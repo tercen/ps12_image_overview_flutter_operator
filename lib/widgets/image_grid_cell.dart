@@ -14,6 +14,8 @@ class ImageGridCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
         // Image ID label at the top (only shown for first row)
@@ -21,13 +23,14 @@ class ImageGridCell extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-            color: Colors.grey.shade50,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
             child: Text(
               image.id,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white : Colors.black,
               ),
             ),
           ),
@@ -36,7 +39,7 @@ class ImageGridCell extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.grey.shade300,
+                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                 width: 1,
               ),
             ),
