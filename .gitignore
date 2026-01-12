@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Platform-specific directories (web-only project)
+/android/
+/ios/
+/windows/
+/linux/
+/macos/
+
+# Local settings
+.claude/settings.local.json
+
+# Temporary files
+nul
