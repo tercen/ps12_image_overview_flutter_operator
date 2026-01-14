@@ -6,10 +6,19 @@ import 'package:ps12_image_overview/services/image_service.dart';
 
 /// Mock implementation of ImageService for development and testing.
 ///
-/// Returns predefined image data from sample sources.
+/// Uses real PNG images converted from PamGene TIFF files.
+/// Image naming convention: {id}_W{well}_F{field}_T{temp}_P{pump}_I{intensity}_A{array}.png
 class MockImageService implements ImageService {
   // Cache for loaded images
   final List<ImageMetadata> _allImages = [];
+
+  // Available real image assets (converted from TIFF)
+  static const List<String> _availableImages = [
+    'assets/641070616_W1_F1_T100_P94_I493_A30.png', // W1 = column 0
+    'assets/641070511_W2_F1_T100_P94_I478_A29.png', // W2 = column 1
+    'assets/641070514_W3_F1_T5_P32_I19_A29.png',    // W3 = column 2
+    'assets/641070516_W4_F1_T100_P67_I288_A29.png', // W4 = column 3 (extra)
+  ];
 
   MockImageService() {
     _initializeMockData();
@@ -18,8 +27,8 @@ class MockImageService implements ImageService {
   void _initializeMockData() {
     // Generate base grid: 4 rows (exposure times) x 3 columns (samples)
     // Each cell will have multiple cycle data
-    final baseId = 710415415;
-    final columns = [0, 1, 2]; // 3 columns (samples)
+    // Use real images for display, cycling through available images
+    final columns = [0, 1, 2]; // 3 columns (samples/wells)
     final cycles = [124, 125, 126, 127];
     final exposureTimes = [100, 150, 200, 250]; // 4 rows
 
@@ -35,18 +44,21 @@ class MockImageService implements ImageService {
         // This simulates: when filtered to lower exposure times, one sample doesn't have that exposure time data
 
         for (final cycle in cycles) {
-          // Generate image IDs
-          final imageId = baseId + imageIndex;
+          // Parse image ID from the asset filename for the column
+          final imagePath = _availableImages[col % _availableImages.length];
+          final imageId = _extractImageId(imagePath);
 
           final image = ImageMetadataImpl(
-            id: imageId.toString(),
+            id: imageId,
             cycle: cycle,
             exposureTime: exposureTime,
             row: row,
             column: col,
             timestamp: DateTime.now().subtract(Duration(hours: imageIndex)),
+            imagePath: imagePath,
             metadata: {
               'label': 'Sample ${col + 1}',
+              'well': 'W${col + 1}',
               'position': 'Cycle $cycle, Exp $exposureTime, Col $col',
             },
           );
@@ -56,6 +68,14 @@ class MockImageService implements ImageService {
         }
       }
     }
+  }
+
+  /// Extracts the image ID from the asset filename.
+  /// e.g., 'assets/641070616_W1_F1_T100_P94_I493_A30.png' -> '641070616'
+  String _extractImageId(String path) {
+    final filename = path.split('/').last;
+    final parts = filename.split('_');
+    return parts.isNotEmpty ? parts[0] : 'unknown';
   }
 
   @override

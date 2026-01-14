@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'image_metadata.dart';
 
 /// Concrete implementation of ImageMetadata.
@@ -21,6 +23,12 @@ class ImageMetadataImpl implements ImageMetadata {
   final DateTime timestamp;
 
   @override
+  final String? imagePath;
+
+  @override
+  final Uint8List? imageBytes;
+
+  @override
   final Map<String, dynamic> metadata;
 
   const ImageMetadataImpl({
@@ -30,12 +38,16 @@ class ImageMetadataImpl implements ImageMetadata {
     required this.row,
     required this.column,
     required this.timestamp,
+    this.imagePath,
+    this.imageBytes,
     this.metadata = const {},
   });
 
   @override
   ImageMetadata copyWith({
     Map<String, dynamic>? metadata,
+    String? imagePath,
+    Uint8List? imageBytes,
   }) {
     return ImageMetadataImpl(
       id: id,
@@ -44,6 +56,8 @@ class ImageMetadataImpl implements ImageMetadata {
       row: row,
       column: column,
       timestamp: timestamp,
+      imagePath: imagePath ?? this.imagePath,
+      imageBytes: imageBytes ?? this.imageBytes,
       metadata: metadata ?? this.metadata,
     );
   }

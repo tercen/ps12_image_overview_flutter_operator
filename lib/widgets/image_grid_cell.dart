@@ -46,16 +46,46 @@ class ImageGridCell extends StatelessWidget {
             child: Container(
               color: Colors.black,
               child: Center(
-                child: AspectRatio(
-                  aspectRatio: 1.0,
-                  child: _buildPlaceholderImage(),
-                ),
+                child: _buildImage(),
               ),
             ),
           ),
         ),
       ],
     );
+  }
+
+  /// Builds the image widget - from bytes, asset path, or placeholder.
+  ///
+  /// Priority:
+  /// 1. imageBytes - runtime-loaded images (from API + TIFF conversion)
+  /// 2. imagePath - bundled asset images
+  /// 3. placeholder - fallback dot pattern
+  Widget _buildImage() {
+    // First priority: image bytes (for runtime-converted images)
+    if (image.imageBytes != null) {
+      return Image.memory(
+        image.imageBytes!,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildPlaceholderImage();
+        },
+      );
+    }
+
+    // Second priority: asset path (for bundled images)
+    if (image.imagePath != null) {
+      return Image.asset(
+        image.imagePath!,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildPlaceholderImage();
+        },
+      );
+    }
+
+    // Fallback: placeholder
+    return _buildPlaceholderImage();
   }
 
   /// Builds a placeholder image with dots pattern (similar to the reference image).
