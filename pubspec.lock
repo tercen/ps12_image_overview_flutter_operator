@@ -33,6 +33,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  chunked_stream:
+    dependency: transitive
+    description:
+      name: chunked_stream
+      sha256: b2fde5f81d780f0c1699b8347cae2e413412ae947fc6e64727cc48c6bb54c95c
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.2"
   clock:
     dependency: transitive
     description:
@@ -81,6 +89,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.5"
+  fixnum:
+    dependency: transitive
+    description:
+      name: fixnum
+      sha256: b6dc7065e46c974bc7c5f143080a6764ec7a4be6da1285ececdc37be96de53be
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -107,6 +123,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.7.0"
+  http:
+    dependency: transitive
+    description:
+      name: http
+      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.0"
+  http_parser:
+    dependency: transitive
+    description:
+      name: http_parser
+      sha256: "178d74305e7866013777bab2c3d8726205dc5a4dd935297175b19a23a2e66571"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.2"
   image:
     dependency: "direct main"
     description:
@@ -147,6 +179,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  logging:
+    dependency: transitive
+    description:
+      name: logging
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.3.0"
   matcher:
     dependency: transitive
     description:
@@ -211,6 +251,42 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.5+1"
+  sci_base:
+    dependency: transitive
+    description:
+      path: sci_base
+      ref: "1.7.0"
+      resolved-ref: da991d03002d6c820f0bca9875c4e2a3d29f40d2
+      url: "https://github.com/tercen/sci_tercen_client"
+    source: git
+    version: "1.7.0"
+  sci_http_client:
+    dependency: transitive
+    description:
+      path: sci_http_client
+      ref: "1.7.0"
+      resolved-ref: da991d03002d6c820f0bca9875c4e2a3d29f40d2
+      url: "https://github.com/tercen/sci_tercen_client"
+    source: git
+    version: "1.7.0"
+  sci_tercen_client:
+    dependency: "direct main"
+    description:
+      path: sci_tercen_client
+      ref: "1.7.0"
+      resolved-ref: da991d03002d6c820f0bca9875c4e2a3d29f40d2
+      url: "https://github.com/tercen/sci_tercen_client.git"
+    source: git
+    version: "1.7.0"
+  sci_tercen_model:
+    dependency: transitive
+    description:
+      path: sci_tercen_model
+      ref: "1.7.0"
+      resolved-ref: da991d03002d6c820f0bca9875c4e2a3d29f40d2
+      url: "https://github.com/tercen/sci_tercen_client"
+    source: git
+    version: "1.7.0"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -264,6 +340,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.7"
+  tson:
+    dependency: transitive
+    description:
+      path: "."
+      ref: "1.5.1"
+      resolved-ref: dd0f955405bbeca6b2a26ea6053a71fe8f6b6c43
+      url: "https://github.com/tercen/dtson"
+    source: git
+    version: "1.5.1"
   typed_data:
     dependency: transitive
     description:
@@ -272,6 +357,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  uuid:
+    dependency: transitive
+    description:
+      name: uuid
+      sha256: a11b666489b1954e01d992f3d601b1804a33937b5a8fe677bd26b8a9f96f96e8
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.5.2"
   vector_math:
     dependency: transitive
     description:
@@ -288,6 +381,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.0.2"
+  web:
+    dependency: transitive
+    description:
+      name: web
+      sha256: "97da13628db363c635202ad97068d47c5b8aa555808e7a9411963c533b449b27"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.1"
+  web_socket_channel:
+    dependency: transitive
+    description:
+      name: web_socket_channel
+      sha256: "58c6666b342a38816b2e7e50ed0f1e261959630becd4c879c4f26bfa14aa5a42"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.5"
   xml:
     dependency: transitive
     description:

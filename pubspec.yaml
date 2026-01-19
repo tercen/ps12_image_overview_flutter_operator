@@ -44,6 +44,13 @@ dependencies:
   # Image processing for TIFF to PNG conversion (runtime)
   image: ^4.2.0
 
+  # Tercen client library for API integration (v1.7.0)
+  sci_tercen_client:
+    git:
+      url: https://github.com/tercen/sci_tercen_client.git
+      ref: 1.7.0
+      path: sci_tercen_client
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,6 +1,8 @@
 import 'package:get_it/get_it.dart';
 import 'package:ps12_image_overview/implementations/services/mock_image_service.dart';
+import 'package:ps12_image_overview/implementations/services/tercen_image_service.dart';
 import 'package:ps12_image_overview/services/image_service.dart';
+import 'package:sci_tercen_client/sci_client_service_factory.dart';
 
 /// Global service locator instance.
 final GetIt getIt = GetIt.instance;
@@ -14,22 +16,54 @@ final GetIt locator = getIt;
 ///
 /// Parameters:
 ///   - [useMocks]: If true, registers mock implementations. If false, registers
-///     real implementations (when available). Defaults to true.
+///     real implementations using Tercen API.
+///   - [tercenFactory]: Required when useMocks is false. The initialized
+///     Tercen ServiceFactory for API access.
+///   - [workflowId]: Optional workflow ID for Tercen context
+///   - [stepId]: Optional step ID for Tercen context
+///   - [devZipFileId]: Optional hardcoded zip file ID for development
 ///
 /// Example:
 /// ```dart
-/// void main() {
-///   setupServiceLocator(useMocks: true);
+/// void main() async {
+///   if (useMocks) {
+///     setupServiceLocator(useMocks: true);
+///   } else {
+///     final factory = await createServiceFactoryForWebApp();
+///     setupServiceLocator(useMocks: false, tercenFactory: factory);
+///   }
 ///   runApp(MyApp());
 /// }
 /// ```
-void setupServiceLocator({bool useMocks = true}) {
+void setupServiceLocator({
+  bool useMocks = true,
+  ServiceFactory? tercenFactory,
+  String? workflowId,
+  String? stepId,
+  String? devZipFileId,
+}) {
   if (useMocks) {
     // Register mock services
     locator.registerSingleton<ImageService>(MockImageService());
   } else {
-    // TODO: Register real services when implemented
-    throw UnimplementedError('Real services not yet implemented');
+    if (tercenFactory == null) {
+      throw StateError(
+          'Tercen ServiceFactory is required when useMocks is false. '
+          'Call createServiceFactoryForWebApp() first.');
+    }
+
+    // Register Tercen ServiceFactory for potential use by other services
+    locator.registerSingleton<ServiceFactory>(tercenFactory);
+
+    // Register real image service using Tercen API
+    locator.registerSingleton<ImageService>(
+      TercenImageService(
+        tercenFactory,
+        workflowId: workflowId,
+        stepId: stepId,
+        devZipFileId: devZipFileId,
+      ),
+    );
   }
 }
 
