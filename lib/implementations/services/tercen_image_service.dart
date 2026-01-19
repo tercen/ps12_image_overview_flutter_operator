@@ -43,7 +43,7 @@ class TercenImageService implements ImageService {
               'DEV_ZIP_FILE_ID',
               // 🔧 DEVELOPMENT: Replace the empty string below with your zip file ID
               // Example: defaultValue: '67890abcdef1234567890abc'
-              defaultValue: '', // <-- Put your zip file ID here
+              defaultValue: '9d8fdc8ec1d6f203834caa17f10038cb', // <-- Put your zip file ID here
             );
 
   @override
@@ -55,7 +55,8 @@ class TercenImageService implements ImageService {
       // Fetch FileDocuments from Tercen
       List<FileDocument> files;
 
-      if (_workflowId != null && _stepId != null) {
+      if (_workflowId != null && _workflowId!.isNotEmpty &&
+          _stepId != null && _stepId!.isNotEmpty) {
         // Production: Query by workflow and step
         files = await fileService.findFileByWorkflowIdAndStepId(
           startKey: [_workflowId, _stepId],
@@ -97,9 +98,9 @@ class TercenImageService implements ImageService {
           allMetadata.add(ImageMetadataImpl(
             id: file.id,
             cycle: metadata['pumpCycle'] as int? ?? 0,
-            exposureTime: metadata['temperature'] as int? ?? 0,
-            row: metadata['field'] as int? ?? 0,
-            column: (metadata['well'] as int? ?? 1) - 1, // W1 = column 0
+            exposureTime: metadata['temperature'] as int? ?? 0,  // T parameter (exposureTime)
+            row: (metadata['well'] as int? ?? 1) - 1,  // Well: W1 = row 0, W2 = row 1, etc.
+            column: 0,  // Will be set after collecting all barcodes
             imagePath: null,
             imageBytes: null, // Lazy-loaded
             timestamp: DateTime.now(),
@@ -107,13 +108,52 @@ class TercenImageService implements ImageService {
               'fileDocumentId': file.id,
               'filename': file.name,
               'isZipEntry': false,
+              'barcode': metadata['barcode'] as String? ?? '',
+              'filter': metadata['filter'] as int? ?? 0,
+              'imageNumber': metadata['imageNumber'] as int? ?? 0,
+              'array': metadata['array'] as int? ?? 0,  // A parameter (actual temperature)
             },
           ));
         }
       }
 
-      _imageMetadata = allMetadata;
+      // Create barcode to column index mapping
+      final barcodes = <String>{};
+      for (final img in allMetadata) {
+        final barcode = img.metadata['barcode'] as String? ?? '';
+        if (barcode.isNotEmpty) {
+          barcodes.add(barcode);
+        }
+      }
+      final barcodeList = barcodes.toList()..sort();
+      final barcodeToColumn = <String, int>{};
+      for (var i = 0; i < barcodeList.length; i++) {
+        barcodeToColumn[barcodeList[i]] = i;
+      }
+
+      // Update column indices based on barcode mapping and create final metadata list
+      final List<ImageMetadata> finalMetadata = [];
+      for (final img in allMetadata) {
+        final barcode = img.metadata['barcode'] as String? ?? '';
+        final columnIndex = barcodeToColumn[barcode] ?? 0;
+
+        final imgImpl = img as ImageMetadataImpl;
+        finalMetadata.add(ImageMetadataImpl(
+          id: imgImpl.id,
+          cycle: imgImpl.cycle,
+          exposureTime: imgImpl.exposureTime,
+          row: imgImpl.row,
+          column: columnIndex,  // Set column based on barcode
+          imagePath: imgImpl.imagePath,
+          imageBytes: imgImpl.imageBytes,
+          timestamp: imgImpl.timestamp,
+          metadata: imgImpl.metadata,
+        ));
+      }
+
+      _imageMetadata = finalMetadata;
       print('Loaded ${_imageMetadata!.length} image metadata entries from Tercen');
+      print('Found ${barcodeList.length} unique barcodes (columns): $barcodeList');
 
       return ImageCollection(images: _imageMetadata!);
     } catch (e, stackTrace) {
@@ -188,12 +228,24 @@ class TercenImageService implements ImageService {
 
       if (isZipEntry) {
         // Download from zip archive
-        final zipFileId = imageMetadata.metadata['zipFileId'] as String;
-        final entryPath = imageMetadata.metadata['zipEntryPath'] as String;
+        final zipFileId = imageMetadata.metadata['zipFileId'] as String?;
+        final entryPath = imageMetadata.metadata['zipEntryPath'] as String?;
+
+        if (zipFileId == null || entryPath == null) {
+          print('Missing zip metadata for image $imageId');
+          return null;
+        }
+
         tiffStream = fileService.downloadZipEntry(zipFileId, entryPath);
       } else {
         // Download regular file
-        final fileDocumentId = imageMetadata.metadata['fileDocumentId'] as String;
+        final fileDocumentId = imageMetadata.metadata['fileDocumentId'] as String?;
+
+        if (fileDocumentId == null) {
+          print('Missing fileDocumentId for image $imageId (possibly mock data)');
+          return null;
+        }
+
         tiffStream = fileService.download(fileDocumentId);
       }
 
@@ -312,15 +364,21 @@ class TercenImageService implements ImageService {
           // Parse filename to extract metadata
           final metadata = TiffConverter.parseFilename(entryName);
 
+          // DEBUG: Print first few filenames and parsed metadata
+          if (images.length < 5) {
+            print('📄 Filename: $entryName');
+            print('   Parsed: $metadata');
+          }
+
           // Generate unique ID combining zip file ID and entry path
           final uniqueId = '${zipFileId}_${entryName.replaceAll('/', '_')}';
 
           images.add(ImageMetadataImpl(
             id: uniqueId,
             cycle: metadata['pumpCycle'] as int? ?? 0,
-            exposureTime: metadata['temperature'] as int? ?? 0,
-            row: metadata['field'] as int? ?? 0,
-            column: (metadata['well'] as int? ?? 1) - 1, // W1 = column 0
+            exposureTime: metadata['temperature'] as int? ?? 0,  // T parameter (exposureTime)
+            row: (metadata['well'] as int? ?? 1) - 1,  // Well: W1 = row 0, W2 = row 1, etc.
+            column: 0,  // Will be set in loadImages() after collecting all barcodes
             imagePath: null,
             imageBytes: null, // Lazy-loaded
             timestamp: DateTime.now(),
@@ -329,6 +387,10 @@ class TercenImageService implements ImageService {
               'zipEntryPath': entryName,
               'filename': entryName,
               'isZipEntry': true,
+              'barcode': metadata['barcode'] as String? ?? '',
+              'filter': metadata['filter'] as int? ?? 0,
+              'imageNumber': metadata['imageNumber'] as int? ?? 0,
+              'array': metadata['array'] as int? ?? 0,  // A parameter (actual temperature)
             },
           ));
         }

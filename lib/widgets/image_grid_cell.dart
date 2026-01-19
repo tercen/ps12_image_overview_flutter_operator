@@ -1,5 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:ps12_image_overview/models/image_metadata.dart';
+import 'package:ps12_image_overview/di/service_locator.dart';
+import 'package:ps12_image_overview/services/image_service.dart';
+import 'package:ps12_image_overview/implementations/services/tercen_image_service.dart';
 
 /// Widget that displays a single image cell in the grid.
 class ImageGridCell extends StatelessWidget {
@@ -18,14 +22,14 @@ class ImageGridCell extends StatelessWidget {
 
     return Column(
       children: [
-        // Image ID label at the top (only shown for first row)
-        if (showLabel && image.row == 1)
+        // Barcode label at the top (only shown for first row - row 0)
+        if (showLabel && image.row == 0)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
             child: Text(
-              image.id,
+              image.metadata['barcode'] as String? ?? image.id,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
@@ -60,9 +64,10 @@ class ImageGridCell extends StatelessWidget {
   /// Priority:
   /// 1. imageBytes - runtime-loaded images (from API + TIFF conversion)
   /// 2. imagePath - bundled asset images
-  /// 3. placeholder - fallback dot pattern
+  /// 3. Lazy-load from Tercen API and convert TIFF to PNG
+  /// 4. placeholder - fallback dot pattern
   Widget _buildImage() {
-    // First priority: image bytes (for runtime-converted images)
+    // First priority: pre-loaded image bytes
     if (image.imageBytes != null) {
       return Image.memory(
         image.imageBytes!,
@@ -73,13 +78,46 @@ class ImageGridCell extends StatelessWidget {
       );
     }
 
-    // Second priority: asset path (for bundled images)
+    // Second priority: bundled asset path
     if (image.imagePath != null) {
       return Image.asset(
         image.imagePath!,
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           return _buildPlaceholderImage();
+        },
+      );
+    }
+
+    // Third priority: lazy-load from Tercen API
+    final imageService = locator<ImageService>();
+    if (imageService is TercenImageService) {
+      return FutureBuilder<Uint8List?>(
+        future: imageService.fetchAndConvertImage(image.id),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading indicator while fetching
+            return Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.grey.shade400,
+              ),
+            );
+          }
+
+          if (snapshot.hasData && snapshot.data != null) {
+            // Display converted PNG bytes
+            return Image.memory(
+              snapshot.data!,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildErrorIndicator('Image decode failed');
+              },
+            );
+          }
+
+          // Show error indicator if fetch/conversion failed
+          return _buildErrorIndicator('Failed to load image');
         },
       );
     }
@@ -97,6 +135,51 @@ class ImageGridCell extends StatelessWidget {
           painter: DotPatternPainter(),
         );
       },
+    );
+  }
+
+  /// Builds an error indicator overlay showing that image loading failed.
+  Widget _buildErrorIndicator(String message) {
+    return Stack(
+      children: [
+        // Background: placeholder pattern
+        _buildPlaceholderImage(),
+        // Foreground: error indicator
+        Container(
+          color: Colors.red.withValues(alpha: 0.2),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  color: Colors.red.shade300,
+                  size: 32,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.red.shade200,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  image.metadata['barcode'] as String? ?? image.id,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.red.shade100,
+                    fontSize: 9,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -149,13 +149,14 @@ class TiffConverter {
             // Read 16-bit value
             final value16 = data.getUint16(pixelOffset, byteOrder);
 
-            // Convert to 8-bit:
-            // - For 16-bit data: shift right by 8 bits
-            // - For 12-bit data stored in 16-bit: shift right by 4 bits
-            // We use 4-bit shift assuming 12-bit data (common for PamGene)
-            final value8 = (bitsPerSample == 16)
-                ? (value16 >> 8) & 0xFF
-                : (value16 >> 4) & 0xFF;
+            // Convert to 8-bit with brightness enhancement (matching R Shiny implementation):
+            // For 12-bit data stored in 16-bit, we multiply by 16 (left shift 4 bits)
+            // to brighten dark microscopy images, then scale to 8-bit range.
+            // R code: tiff::readTIFF(tiff_file) * 16
+            // This effectively takes the 12-bit value and uses it directly as 16-bit,
+            // then converts to 8-bit by taking the high byte.
+            final brightened = (value16 * 16).clamp(0, 65535);
+            final value8 = (brightened >> 8) & 0xFF;
 
             image.setPixelRgb(x, y, value8, value8, value8);
             pixelOffset += 2;
@@ -171,7 +172,9 @@ class TiffConverter {
 
   /// Extracts metadata from a PamGene TIFF filename.
   ///
-  /// Filename format: {id}_W{well}_F{field}_T{temp}_P{pump}_I{intensity}_A{array}.tif
+  /// Filename format: {barcode}_W{well}_F{filter}_T{temperature}_P{pumpCycle}_I{imageNumber}_A{array}.tif
+  ///
+  /// Note: A is actually the array/temperature value, T is a different temperature parameter
   ///
   /// Returns a map with extracted values, or empty map if parsing fails.
   static Map<String, dynamic> parseFilename(String filename) {
@@ -185,8 +188,8 @@ class TiffConverter {
       final parts = baseName.split('_');
       if (parts.isEmpty) return result;
 
-      // First part is the image ID
-      result['id'] = parts[0];
+      // First part is the barcode (9-digit number)
+      result['barcode'] = parts[0];
 
       // Parse remaining parts
       for (var i = 1; i < parts.length; i++) {
@@ -201,7 +204,7 @@ class TiffConverter {
             result['well'] = value;
             break;
           case 'F':
-            result['field'] = value;
+            result['filter'] = value;  // Changed from 'field' to 'filter'
             break;
           case 'T':
             result['temperature'] = value;
@@ -210,7 +213,7 @@ class TiffConverter {
             result['pumpCycle'] = value;
             break;
           case 'I':
-            result['intensity'] = value;
+            result['imageNumber'] = value;  // Changed from 'intensity' to 'imageNumber'
             break;
           case 'A':
             result['array'] = value;
