@@ -5,7 +5,6 @@ import 'package:ps12_image_overview/providers/image_overview_provider.dart';
 import 'package:ps12_image_overview/providers/theme_provider.dart';
 import 'package:ps12_image_overview/screens/image_overview_screen.dart';
 import 'package:sci_tercen_client/sci_service_factory_web.dart';
-import 'package:sci_tercen_client/sci_client_service_factory.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,28 +19,13 @@ void main() async {
     // Use mock services for development/testing
     setupServiceLocator(useMocks: true);
   } else {
-    // Get environment variables for development mode
-    const devToken = String.fromEnvironment('DEV_TOKEN');
-    const devServerUrl = String.fromEnvironment('DEV_SERVER_URL');
+    // Initialize Tercen ServiceFactory with token and URI from environment
+    final tercenFactory = await createServiceFactoryForWebApp();
+
+    // Optional: Get workflow and step IDs from environment
     const workflowId = String.fromEnvironment('WORKFLOW_ID');
     const stepId = String.fromEnvironment('STEP_ID');
     const devZipFileId = String.fromEnvironment('DEV_ZIP_FILE_ID');
-
-    // Initialize Tercen ServiceFactory
-    late ServiceFactory tercenFactory;
-
-    if (devToken.isNotEmpty && devServerUrl.isNotEmpty) {
-      // Development mode: Use explicit token and server URL
-      print('🔧 DEV MODE: Connecting to $devServerUrl with explicit token');
-      tercenFactory = await ServiceFactory.createServiceFactory(
-        serviceUri: devServerUrl,
-        token: devToken,
-      );
-    } else {
-      // Production mode: Get authentication from URL parameters (when running in Tercen)
-      print('📱 PRODUCTION MODE: Reading auth from URL parameters');
-      tercenFactory = await createServiceFactoryForWebApp();
-    }
 
     // Set up service locator with real Tercen services
     setupServiceLocator(
