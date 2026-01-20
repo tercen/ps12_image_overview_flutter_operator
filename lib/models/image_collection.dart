@@ -32,4 +32,25 @@ class ImageCollection {
   List<int> get uniqueExposureTimes {
     return images.map((img) => img.exposureTime).toSet().toList()..sort();
   }
+
+  /// Gets unique row numbers.
+  List<int> get uniqueRows {
+    return images.map((img) => img.row).toSet().toList()..sort();
+  }
+
+  /// Gets unique column numbers.
+  List<int> get uniqueColumns {
+    return images.map((img) => img.column).toSet().toList()..sort();
+  }
+
+  /// Gets unique barcode values for column labels.
+  List<String> get uniqueBarcodes {
+    final barcodes = images
+        .map((img) => img.metadata['barcode'] as String?)
+        .where((b) => b != null && b.isNotEmpty)
+        .toSet()
+        .toList();
+    barcodes.sort();
+    return barcodes.cast<String>();
+  }
 }

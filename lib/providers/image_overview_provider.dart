@@ -25,6 +25,15 @@ class ImageOverviewProvider extends ChangeNotifier {
   /// Gets available exposure time options from ALL images (not just filtered).
   List<int> get availableExposureTimes => _allImages.uniqueExposureTimes;
 
+  /// Gets all unique rows from ALL images (for maintaining grid structure).
+  List<int> get allRows => _allImages.uniqueRows;
+
+  /// Gets all unique columns from ALL images (for maintaining grid structure).
+  List<int> get allColumns => _allImages.uniqueColumns;
+
+  /// Gets all unique barcodes from ALL images (for column labels).
+  List<String> get allBarcodes => _allImages.uniqueBarcodes;
+
   /// Loads images from the service.
   /// On initial load, defaults to highest cycle and highest exposure time.
   Future<void> loadImages() async {

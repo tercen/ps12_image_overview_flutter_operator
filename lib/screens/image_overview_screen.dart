@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ps12_image_overview/models/image_metadata.dart';
 import 'package:ps12_image_overview/providers/image_overview_provider.dart';
 import 'package:ps12_image_overview/providers/theme_provider.dart';
 import 'package:ps12_image_overview/widgets/image_grid_cell.dart';
@@ -30,21 +31,19 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
         backgroundColor: const Color(0xFF005f75),
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          Consumer<ThemeProvider>(
-            builder: (context, themeProvider, child) {
-              return IconButton(
-                icon: Icon(
-                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                ),
-                tooltip: themeProvider.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-                onPressed: () {
-                  themeProvider.toggleTheme();
-                },
-              );
-            },
-          ),
-        ],
+        leading: Consumer<ThemeProvider>(
+          builder: (context, themeProvider, child) {
+            return IconButton(
+              icon: Icon(
+                themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              ),
+              tooltip: themeProvider.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              onPressed: () {
+                themeProvider.toggleTheme();
+              },
+            );
+          },
+        ),
       ),
       body: Consumer<ImageOverviewProvider>(
         builder: (context, provider, child) {
@@ -65,10 +64,13 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
             children: [
               // Filter controls
               _buildFilterControls(context, provider),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),  // Reduced from 16 to 8 (50% reduction)
               // Image grid
               Expanded(
-                child: _buildImageGrid(provider),
+                child: Container(
+                  color: const Color(0xFFf8f9ff),  // Match filter bar background
+                  child: _buildImageGrid(provider),
+                ),
               ),
             ],
           );
@@ -92,7 +94,7 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
               children: [
                 const Text(
                   'Pump Cycle',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 _buildDropdown(
@@ -114,7 +116,7 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
               children: [
                 const Text(
                   'Exposure Time',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 _buildDropdown(
@@ -179,27 +181,34 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
   }
 
   /// Builds the image grid.
+  /// Maintains full grid structure even when no images match the filter,
+  /// showing "no image" placeholders in empty cells.
   Widget _buildImageGrid(ImageOverviewProvider provider) {
-    if (provider.images.count == 0) {
+    // Get the full grid structure from all images (not just filtered)
+    final allRows = provider.allRows;
+    final allColumns = provider.allColumns;
+    final allBarcodes = provider.allBarcodes;
+
+    // If no images loaded at all, show empty state
+    if (allRows.isEmpty || allColumns.isEmpty) {
       return const Center(
         child: Text('No images to display'),
       );
     }
 
-    // Group images by row
-    final imagesByRow = provider.images.groupByRow();
-    final rows = imagesByRow.keys.toList()..sort();
+    // Create a lookup map for quick access to filtered images
+    final imagesByPosition = <String, ImageMetadata>{};
+    for (final image in provider.images.images) {
+      final key = '${image.row}_${image.column}';
+      imagesByPosition[key] = image;
+    }
 
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: rows.map((rowNumber) {
-            final rowImages = imagesByRow[rowNumber]!;
-            // Sort by column
-            rowImages.sort((a, b) => a.column.compareTo(b.column));
-
+          children: allRows.map((rowNumber) {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -212,8 +221,8 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
                       'W${rowNumber + 1}',  // row 0 = W1, row 1 = W2, etc.
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -224,16 +233,27 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: rowImages.map((image) {
+                      children: allColumns.map((columnNumber) {
+                        final key = '${rowNumber}_$columnNumber';
+                        final image = imagesByPosition[key];
+                        final barcode = columnNumber < allBarcodes.length
+                            ? allBarcodes[columnNumber]
+                            : '';
+
                         return Padding(
                           padding: const EdgeInsets.all(12),
                           child: SizedBox(
                             width: 250,
                             height: 250,
-                            child: ImageGridCell(
-                              image: image,
-                              showLabel: rowNumber == 0,  // Show barcode labels for first row (W1)
-                            ),
+                            child: image != null
+                                ? ImageGridCell(
+                                    image: image,
+                                    showLabel: rowNumber == allRows.first,  // Show barcode labels for first row
+                                  )
+                                : _buildEmptyCell(
+                                    barcode: barcode,
+                                    showLabel: rowNumber == allRows.first,
+                                  ),
                           ),
                         );
                       }).toList(),
@@ -244,6 +264,68 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
             );
           }).toList(),
         ),
+      ),
+    );
+  }
+
+  /// Builds an empty cell placeholder when no image exists for that grid position.
+  Widget _buildEmptyCell({required String barcode, required bool showLabel}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        border: Border.all(
+          color: Colors.grey.shade800,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        children: [
+          // Barcode label (shown only on first row)
+          if (showLabel)
+            Container(
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade800,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  topRight: Radius.circular(4),
+                ),
+              ),
+              child: Text(
+                barcode,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+            ),
+          // Empty space with "No image" message
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Colors.grey.shade700,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No image',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

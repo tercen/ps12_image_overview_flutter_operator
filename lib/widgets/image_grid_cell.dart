@@ -32,8 +32,8 @@ class ImageGridCell extends StatelessWidget {
               image.metadata['barcode'] as String? ?? image.id,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white : Colors.black,
               ),
             ),
