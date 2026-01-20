@@ -62,17 +62,25 @@ class TercenImageService implements ImageService {
       // Get FileService from Tercen ServiceFactory
       final fileService = _serviceFactory.fileService;
 
+      // Debug: Print what we received
+      print('📋 TercenImageService received:');
+      print('   workflowId: $_workflowId');
+      print('   stepId: $_stepId');
+      print('   devZipFileId: $_devZipFileId');
+
       // Fetch FileDocuments from Tercen
       List<FileDocument> files;
 
       if (_workflowId != null && _workflowId!.isNotEmpty &&
           _stepId != null && _stepId!.isNotEmpty) {
         // Production: Query by workflow and step
+        print('✓ Using production path: findFileByWorkflowIdAndStepId');
         files = await fileService.findFileByWorkflowIdAndStepId(
           startKey: [_workflowId, _stepId],
           endKey: [_workflowId, _stepId, {}],
           limit: 1000,
         );
+        print('✓ Found ${files.length} files from workflow/step query');
       } else if (_devZipFileId != null && _devZipFileId!.isNotEmpty) {
         // Development: Use hardcoded zip file ID
         print('🔧 DEV MODE: Using hardcoded zip file ID: $_devZipFileId');
