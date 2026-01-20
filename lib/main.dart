@@ -24,16 +24,46 @@ void main() async {
     // Initialize Tercen ServiceFactory with token and URI from environment
     final tercenFactory = await createServiceFactoryForWebApp();
 
-    // Get workflow and step IDs from URL query parameters (Tercen context)
-    // or from environment variables (local development)
-    final uriParams = Uri.base.queryParameters;
-    final workflowId = uriParams['workflowId'] ??
-                       const String.fromEnvironment('WORKFLOW_ID');
-    final stepId = uriParams['stepId'] ??
-                   const String.fromEnvironment('STEP_ID');
-    const devZipFileId = String.fromEnvironment('DEV_ZIP_FILE_ID');
+    // Parse URL path segments to detect deployment mode
+    final pathSegments = Uri.base.pathSegments;
+    String? workflowId;
+    String? stepId;
+    String? documentId;
 
-    print('🔍 Tercen Context: workflowId=$workflowId, stepId=$stepId');
+    print('🔍 URL Analysis:');
+    print('   Full URL: ${Uri.base}');
+    print('   Path segments: $pathSegments');
+
+    // Detect deployment mode from URL structure:
+    // Mode 1 (Standalone): /_w3op/{documentId}/
+    // Mode 2 (Workflow): /w/{workflowId}/ds/{stepId}
+    if (pathSegments.contains('_w3op') && pathSegments.length > 1) {
+      // Standalone app mode: Extract document ID
+      final index = pathSegments.indexOf('_w3op');
+      if (index + 1 < pathSegments.length) {
+        documentId = pathSegments[index + 1];
+        print('✓ Detected STANDALONE mode: documentId=$documentId');
+      }
+    } else if (pathSegments.contains('w') && pathSegments.contains('ds')) {
+      // Workflow step mode: Extract workflowId and stepId
+      final wIndex = pathSegments.indexOf('w');
+      final dsIndex = pathSegments.indexOf('ds');
+      if (wIndex + 1 < pathSegments.length && dsIndex + 1 < pathSegments.length) {
+        workflowId = pathSegments[wIndex + 1];
+        stepId = pathSegments[dsIndex + 1];
+        print('✓ Detected WORKFLOW mode: workflowId=$workflowId, stepId=$stepId');
+      }
+    }
+
+    // Fallback to environment variables for local development
+    workflowId ??= const String.fromEnvironment('WORKFLOW_ID');
+    stepId ??= const String.fromEnvironment('STEP_ID');
+    documentId ??= const String.fromEnvironment('DEV_ZIP_FILE_ID');
+
+    print('📋 Final configuration:');
+    print('   workflowId: $workflowId');
+    print('   stepId: $stepId');
+    print('   documentId: $documentId');
 
     // Set up service locator with real Tercen services
     setupServiceLocator(
@@ -41,7 +71,7 @@ void main() async {
       tercenFactory: tercenFactory,
       workflowId: workflowId.isEmpty ? null : workflowId,
       stepId: stepId.isEmpty ? null : stepId,
-      devZipFileId: devZipFileId.isEmpty ? null : devZipFileId,
+      devZipFileId: documentId.isEmpty ? null : documentId,
     );
   }
 
