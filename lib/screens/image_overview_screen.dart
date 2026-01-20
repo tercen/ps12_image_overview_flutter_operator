@@ -203,13 +203,13 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Row number label
+                // Row label (Well number: W1, W2, etc.)
                 SizedBox(
                   width: 40,
                   height: 274, // 250px cell + 12px top margin + 12px bottom margin
                   child: Center(
                     child: Text(
-                      rowNumber.toString(),
+                      'W${rowNumber + 1}',  // row 0 = W1, row 1 = W2, etc.
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 16,
@@ -218,22 +218,27 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
                     ),
                   ),
                 ),
-                // Images in this row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: rowImages.map((image) {
-                    return Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 250,
-                        height: 250,
-                        child: ImageGridCell(
-                          image: image,
-                          showLabel: rowNumber == 1,
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                // Images in this row - wrapped in Expanded to allow horizontal scrolling
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: rowImages.map((image) {
+                        return Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 250,
+                            height: 250,
+                            child: ImageGridCell(
+                              image: image,
+                              showLabel: rowNumber == 0,  // Show barcode labels for first row (W1)
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ],
             );

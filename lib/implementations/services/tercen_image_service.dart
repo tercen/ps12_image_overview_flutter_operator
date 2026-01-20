@@ -20,6 +20,7 @@ import 'package:sci_tercen_client/sci_client.dart' show FileDocument;
 /// - Lazy loading: Fetches metadata first, downloads images on-demand
 /// - Caching: Stores converted PNG bytes to avoid redundant conversions
 /// - Error handling: Gracefully handles network and conversion errors
+/// - Request throttling: Limits concurrent downloads to prevent server overload
 class TercenImageService implements ImageService {
   final ServiceFactory _serviceFactory;
   final ImageBytesCache _cache;
@@ -29,6 +30,15 @@ class TercenImageService implements ImageService {
 
   /// Cached image metadata loaded on startup
   List<ImageMetadata>? _imageMetadata;
+
+  /// Maximum number of concurrent image downloads
+  static const int _maxConcurrentDownloads = 3;
+
+  /// Current number of active downloads
+  int _activeDownloads = 0;
+
+  /// Queue of pending download requests
+  final List<_DownloadRequest> _downloadQueue = [];
 
   TercenImageService(
     this._serviceFactory, {
@@ -203,6 +213,9 @@ class TercenImageService implements ImageService {
   ///
   /// Supports both individual files and files within zip archives.
   ///
+  /// Uses request throttling to prevent overwhelming the Tercen server with
+  /// concurrent downloads. Maximum of 3 concurrent downloads allowed.
+  ///
   /// Returns null if the download or conversion fails.
   Future<Uint8List?> fetchAndConvertImage(String imageId) async {
     // Check cache first
@@ -210,11 +223,41 @@ class TercenImageService implements ImageService {
       return _cache.get(imageId);
     }
 
+    // Create a completer for this download request
+    final completer = Completer<Uint8List?>();
+    final request = _DownloadRequest(imageId, completer);
+
+    // Add to queue and try to process
+    _downloadQueue.add(request);
+    _processQueue();
+
+    // Wait for the download to complete
+    return completer.future;
+  }
+
+  /// Processes the download queue, respecting the concurrency limit.
+  void _processQueue() {
+    // Process as many requests as we can within the concurrency limit
+    while (_activeDownloads < _maxConcurrentDownloads && _downloadQueue.isNotEmpty) {
+      final request = _downloadQueue.removeAt(0);
+      _activeDownloads++;
+
+      // Start the download (fire and forget)
+      _downloadAndConvertImage(request).then((_) {
+        _activeDownloads--;
+        // Process next item in queue
+        _processQueue();
+      });
+    }
+  }
+
+  /// Actually downloads and converts a single image.
+  Future<void> _downloadAndConvertImage(_DownloadRequest request) async {
     try {
       // Find the image metadata to determine if it's a zip entry
       final imageMetadata = _imageMetadata?.firstWhere(
-        (img) => img.id == imageId,
-        orElse: () => throw StateError('Image metadata not found for $imageId'),
+        (img) => img.id == request.imageId,
+        orElse: () => throw StateError('Image metadata not found for ${request.imageId}'),
       );
 
       if (imageMetadata == null) {
@@ -232,8 +275,9 @@ class TercenImageService implements ImageService {
         final entryPath = imageMetadata.metadata['zipEntryPath'] as String?;
 
         if (zipFileId == null || entryPath == null) {
-          print('Missing zip metadata for image $imageId');
-          return null;
+          print('Missing zip metadata for image ${request.imageId}');
+          request.completer.complete(null);
+          return;
         }
 
         tiffStream = fileService.downloadZipEntry(zipFileId, entryPath);
@@ -242,8 +286,9 @@ class TercenImageService implements ImageService {
         final fileDocumentId = imageMetadata.metadata['fileDocumentId'] as String?;
 
         if (fileDocumentId == null) {
-          print('Missing fileDocumentId for image $imageId (possibly mock data)');
-          return null;
+          print('Missing fileDocumentId for image ${request.imageId} (possibly mock data)');
+          request.completer.complete(null);
+          return;
         }
 
         tiffStream = fileService.download(fileDocumentId);
@@ -258,21 +303,21 @@ class TercenImageService implements ImageService {
 
       if (pngBytes != null) {
         // Cache the converted PNG
-        _cache.put(imageId, pngBytes);
+        _cache.put(request.imageId, pngBytes);
         print(
-            'Converted and cached image $imageId (${pngBytes.length ~/ 1024} KB)');
+            'Converted and cached image ${request.imageId} (${pngBytes.length ~/ 1024} KB)');
       } else {
-        print('Failed to convert TIFF to PNG for image $imageId');
+        print('Failed to convert TIFF to PNG for image ${request.imageId}');
       }
 
-      return pngBytes;
+      request.completer.complete(pngBytes);
     } on TimeoutException {
-      print('Timeout downloading image $imageId');
-      return null;
+      print('Timeout downloading image ${request.imageId}');
+      request.completer.complete(null);
     } catch (e, stackTrace) {
-      print('Error fetching image $imageId: $e');
+      print('Error fetching image ${request.imageId}: $e');
       print(stackTrace);
-      return null;
+      request.completer.complete(null);
     }
   }
 
@@ -416,4 +461,12 @@ class TercenImageService implements ImageService {
     final lowerName = filename.toLowerCase();
     return lowerName.endsWith('.tif') || lowerName.endsWith('.tiff');
   }
+}
+
+/// Internal class to represent a download request in the queue.
+class _DownloadRequest {
+  final String imageId;
+  final Completer<Uint8List?> completer;
+
+  _DownloadRequest(this.imageId, this.completer);
 }
