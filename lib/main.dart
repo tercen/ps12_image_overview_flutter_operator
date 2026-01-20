@@ -24,10 +24,16 @@ void main() async {
     // Initialize Tercen ServiceFactory with token and URI from environment
     final tercenFactory = await createServiceFactoryForWebApp();
 
-    // Optional: Get workflow and step IDs from environment
-    const workflowId = String.fromEnvironment('WORKFLOW_ID');
-    const stepId = String.fromEnvironment('STEP_ID');
+    // Get workflow and step IDs from URL query parameters (Tercen context)
+    // or from environment variables (local development)
+    final uriParams = Uri.base.queryParameters;
+    final workflowId = uriParams['workflowId'] ??
+                       const String.fromEnvironment('WORKFLOW_ID');
+    final stepId = uriParams['stepId'] ??
+                   const String.fromEnvironment('STEP_ID');
     const devZipFileId = String.fromEnvironment('DEV_ZIP_FILE_ID');
+
+    print('🔍 Tercen Context: workflowId=$workflowId, stepId=$stepId');
 
     // Set up service locator with real Tercen services
     setupServiceLocator(
