@@ -45,17 +45,17 @@ flutter pub get
 
 ### Running the Application
 
-#### Option 1: Mock Data (Default)
-Run with mock data for development and testing:
+#### Option 1: Mock Data (Local Development)
+Run with mock data for development and testing (requires USE_MOCKS=true):
 ```bash
 # Web
-flutter run -d chrome
+flutter run -d chrome --dart-define=USE_MOCKS=true
 
 # Desktop (Windows)
-flutter run -d windows
+flutter run -d windows --dart-define=USE_MOCKS=true
 ```
 
-#### Option 2: Tercen Integration - Development Mode (Local Testing)
+#### Option 2: Tercen Integration - Development Mode (Local Testing with Real Data)
 
 Run with real Tercen data using explicit token and document ID for local testing:
 

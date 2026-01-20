@@ -10,9 +10,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Check if we should use mock services or real Tercen API
+  // Default to false (real data) when deployed to Tercen
+  // Override with --dart-define=USE_MOCKS=true for local development with mocks
   const useMocks = bool.fromEnvironment(
     'USE_MOCKS',
-    defaultValue: true, // Default to mocks for development
+    defaultValue: false, // Default to real Tercen API (production mode)
   );
 
   if (useMocks) {
