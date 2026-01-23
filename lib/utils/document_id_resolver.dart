@@ -123,6 +123,13 @@ class DocumentIdResolver {
       print('   ✓ Retrieved column schema with ${columnSchema.nRows} rows');
       print('   ✓ Column names: ${columnSchema.columns.map((c) => c.name).join(", ")}');
 
+      // DEBUG: Print ALL column details
+      print('   🔍 DETAILED COLUMN INSPECTION:');
+      for (var i = 0; i < columnSchema.columns.length; i++) {
+        final col = columnSchema.columns[i];
+        print('      Column[$i]: name="${col.name}", type=${col.runtimeType}');
+      }
+
       // Check if documentId column exists
       final docIdColumn = columnSchema.columns.where((col) => col.name == 'documentId').firstOrNull;
       final idColumn = columnSchema.columns.where((col) => col.name == 'id').firstOrNull;
@@ -224,6 +231,13 @@ class DocumentIdResolver {
       print('   Stack trace: $stackTrace');
       return null;
     }
+  }
+
+  /// Public method to search for files by workflow/step (for external fallback calls).
+  ///
+  /// This can be called from services when primary resolution strategies fail.
+  Future<String?> tryFindFilesByWorkflowStep() async {
+    return _tryFindFilesByWorkflowStep();
   }
 
   /// Strategy 2: Search for files by workflowId and stepId.

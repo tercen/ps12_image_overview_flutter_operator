@@ -155,7 +155,23 @@ class TercenImageService implements ImageService {
         }
       }
 
-      // If both strategies failed, fall back to mock data
+      // If documentId/id strategies failed, try workflow/step file search
+      if (zipFile == null) {
+        print('⚠️ DocumentId strategies failed, trying workflow/step file search...');
+        final docIdFromWorkflow = await _documentIdResolver.tryFindFilesByWorkflowStep();
+
+        if (docIdFromWorkflow != null) {
+          try {
+            print('   🔍 Attempting to load file from workflow/step search: $docIdFromWorkflow');
+            zipFile = await fileService.get(docIdFromWorkflow);
+            print('   ✓ Successfully loaded file via workflow/step search: ${zipFile.name}');
+          } catch (e) {
+            print('   ✗ Error loading file from workflow/step search: $e');
+          }
+        }
+      }
+
+      // Final fallback to mock data
       if (zipFile == null) {
         print('⚠️ All file loading strategies failed, falling back to mock data');
         _imageMetadata = _createMockMetadata();
