@@ -161,26 +161,33 @@ class DocumentIdResolver {
 
       // Log all column values we received
       for (final col in columnData.columns) {
-        print('   📋 Column "${col.name}": ${col.values?.firstOrNull}');
+        final firstValue = col.values != null && col.values.isNotEmpty ? col.values.first : null;
+        print('   📋 Column "${col.name}": $firstValue');
       }
 
       // Try documentId column first
-      final docIdColData = columnData.columns.where((c) => c.name == 'documentId').firstOrNull;
-      if (docIdColData != null && docIdColData.values != null && docIdColData.values.isNotEmpty) {
-        final documentId = docIdColData.values.first?.toString();
-        if (documentId != null && documentId.isNotEmpty) {
-          print('   ✓ Successfully extracted documentId: $documentId');
-          return documentId;
+      final docIdMatches = columnData.columns.where((c) => c.name == 'documentId');
+      if (docIdMatches.isNotEmpty) {
+        final docIdColData = docIdMatches.first;
+        if (docIdColData.values != null && docIdColData.values.isNotEmpty) {
+          final documentId = docIdColData.values.first?.toString();
+          if (documentId != null && documentId.isNotEmpty) {
+            print('   ✓ Successfully extracted documentId: $documentId');
+            return documentId;
+          }
         }
       }
 
       // If documentId didn't work, try the 'id' column
-      final idColData = columnData.columns.where((c) => c.name == 'id').firstOrNull;
-      if (idColData != null && idColData.values != null && idColData.values.isNotEmpty) {
-        final id = idColData.values.first?.toString();
-        if (id != null && id.isNotEmpty) {
-          print('   ℹ️ Trying "id" column value as documentId: $id');
-          return id;
+      final idMatches = columnData.columns.where((c) => c.name == 'id');
+      if (idMatches.isNotEmpty) {
+        final idColData = idMatches.first;
+        if (idColData.values != null && idColData.values.isNotEmpty) {
+          final id = idColData.values.first?.toString();
+          if (id != null && id.isNotEmpty) {
+            print('   ℹ️ Trying "id" column value as documentId: $id');
+            return id;
+          }
         }
       }
 
