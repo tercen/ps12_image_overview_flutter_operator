@@ -93,13 +93,35 @@ class DocumentIdResolver {
       print('   ✓ Retrieved task: ${task.id}');
       print('   ✓ Task type: ${task.runtimeType}');
 
-      // Check if task has a query (CubeQueryTask)
-      if (task is! CubeQueryTask) {
-        print('   ⊘ Task is not a CubeQueryTask, no column data available');
+      // Handle both RunWebAppTask and CubeQueryTask
+      CubeQueryTask? cubeTask;
+
+      if (task is RunWebAppTask) {
+        print('   ✓ Task is RunWebAppTask, extracting cubeQueryTaskId');
+        final cubeQueryTaskId = task.cubeQueryTaskId;
+        if (cubeQueryTaskId.isEmpty) {
+          print('   ⊘ RunWebAppTask has empty cubeQueryTaskId');
+          return null;
+        }
+
+        print('   🔍 Fetching CubeQueryTask: $cubeQueryTaskId');
+        final cubeTaskObj = await _serviceFactory.taskService.get(cubeQueryTaskId);
+
+        if (cubeTaskObj is! CubeQueryTask) {
+          print('   ⊘ Referenced task is not a CubeQueryTask: ${cubeTaskObj.runtimeType}');
+          return null;
+        }
+
+        cubeTask = cubeTaskObj as CubeQueryTask;
+        print('   ✓ Successfully retrieved CubeQueryTask');
+      } else if (task is CubeQueryTask) {
+        print('   ✓ Task is already a CubeQueryTask');
+        cubeTask = task as CubeQueryTask;
+      } else {
+        print('   ⊘ Task is neither RunWebAppTask nor CubeQueryTask: ${task.runtimeType}');
         return null;
       }
 
-      final cubeTask = task as CubeQueryTask;
       final query = cubeTask.query;
 
       if (query == null) {
