@@ -45,6 +45,15 @@ void main() async {
     print('   workflowId: $workflowId');
     print('   stepId: $stepId');
 
+    // Extract documentId from URL path: /_w3op/{documentId}
+    if (pathSegments.contains('_w3op') && pathSegments.length > 1) {
+      final index = pathSegments.indexOf('_w3op');
+      if (index + 1 < pathSegments.length) {
+        documentId = pathSegments[index + 1];
+        print('✓ Found documentId in URL path: $documentId');
+      }
+    }
+
     // Also check path segments for workflow mode (legacy support)
     if (pathSegments.contains('w') && pathSegments.contains('ds')) {
       final wIndex = pathSegments.indexOf('w');
@@ -71,10 +80,11 @@ void main() async {
     setupServiceLocator(
       useMocks: false,
       tercenFactory: tercenFactory,
+      documentId: documentId?.isEmpty ?? true ? null : documentId,
       taskId: taskId,
       workflowId: workflowId?.isEmpty ?? true ? null : workflowId,
       stepId: stepId?.isEmpty ?? true ? null : stepId,
-      devZipFileId: documentId?.isEmpty ?? true ? null : documentId,
+      devZipFileId: const String.fromEnvironment('DEV_ZIP_FILE_ID'),
     );
   }
 

@@ -41,6 +41,7 @@ class TercenImageService implements ImageService {
 
   TercenImageService(
     this._serviceFactory, {
+    String? documentId,  // documentId from URL path
     String? taskId,
     String? workflowId,
     String? stepId,
@@ -48,6 +49,7 @@ class TercenImageService implements ImageService {
   })  : _cache = ImageBytesCache(),
         _documentIdResolver = DocumentIdResolver(
           serviceFactory: _serviceFactory,
+          documentId: documentId,
           taskId: taskId,
           workflowId: workflowId,
           stepId: stepId,

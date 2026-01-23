@@ -6,12 +6,14 @@ import 'package:sci_tercen_client/sci_client.dart' hide ServiceFactory;
 /// This class implements a hierarchical fallback approach to find the
 /// document ID (zip file) containing images:
 ///
-/// 1. **Primary**: Extract from column data via CubeQuery (production)
-/// 2. **Fallback 1**: Search files by workflowId/stepId (auto-discovery)
-/// 3. **Fallback 2**: Use hardcoded development zip file ID
-/// 4. **Final**: Return null for mock data fallback
+/// 1. **Primary**: Use documentId from URL path (/_w3op/{documentId})
+/// 2. **Fallback 1**: Extract from column data via CubeQuery
+/// 3. **Fallback 2**: Search files by workflowId/stepId (auto-discovery)
+/// 4. **Fallback 3**: Use hardcoded development zip file ID
+/// 5. **Final**: Return null for mock data fallback
 class DocumentIdResolver {
   final ServiceFactory _serviceFactory;
+  final String? _documentId;  // From URL path
   final String? _taskId;
   final String? _workflowId;
   final String? _stepId;
@@ -19,11 +21,13 @@ class DocumentIdResolver {
 
   DocumentIdResolver({
     required ServiceFactory serviceFactory,
+    String? documentId,  // documentId from URL path
     String? taskId,
     String? workflowId,
     String? stepId,
     String? devZipFileId,
   })  : _serviceFactory = serviceFactory,
+        _documentId = documentId,
         _taskId = taskId,
         _workflowId = workflowId,
         _stepId = stepId,
@@ -35,35 +39,41 @@ class DocumentIdResolver {
   Future<String?> resolveDocumentId() async {
     print('🔍 DocumentIdResolver: Starting resolution process');
 
-    // Strategy 1: Extract from column data (PRODUCTION - like Shiny)
+    // Strategy 1: Use documentId from URL path (PRIMARY - SIMPLEST)
+    if (_documentId != null && _documentId!.isNotEmpty) {
+      print('✓ DocumentIdResolver: Using documentId from URL path: $_documentId');
+      return _documentId;
+    }
+
+    // Strategy 2: Extract from column data (PRODUCTION - like Shiny)
     final docIdFromColumns = await _tryGetFromColumnData();
     if (docIdFromColumns != null) {
       print('✓ DocumentIdResolver: Found documentId from column data: $docIdFromColumns');
       return docIdFromColumns;
     }
 
-    // Strategy 2: Search files by workflow/step (AUTO-DISCOVERY)
+    // Strategy 3: Search files by workflow/step (AUTO-DISCOVERY)
     final docIdFromFiles = await _tryFindFilesByWorkflowStep();
     if (docIdFromFiles != null) {
       print('✓ DocumentIdResolver: Found documentId by searching files: $docIdFromFiles');
       return docIdFromFiles;
     }
 
-    // Strategy 3: Use development hardcoded ID (DEVELOPMENT)
+    // Strategy 4: Use development hardcoded ID (DEVELOPMENT)
     if (_devZipFileId != null && _devZipFileId!.isNotEmpty) {
       print('✓ DocumentIdResolver: Using development zip file ID: $_devZipFileId');
       return _devZipFileId;
     }
 
-    // Strategy 4: Return null for mock fallback
+    // Strategy 5: Return null for mock fallback
     print('⚠️ DocumentIdResolver: No document ID found, will use mock data');
     return null;
   }
 
-  /// Strategy 1: Extract documentId from column data via Task's CubeQuery.
+  /// Strategy 2: Extract documentId from column data via Task's CubeQuery.
   ///
-  /// This is the primary production path, matching how Shiny operators work.
-  /// The documentId is provided as a column factor in the Tercen data step.
+  /// This is used when documentId is provided as a column factor in the
+  /// Tercen data step (like Shiny operators).
   ///
   /// NOTE: This implementation is simplified - extracting actual column data from
   /// Tercen's Table API requires understanding the internal data format. For now,
@@ -106,10 +116,10 @@ class DocumentIdResolver {
     }
   }
 
-  /// Strategy 2: Search for files by workflowId and stepId.
+  /// Strategy 3: Search for files by workflowId and stepId.
   ///
   /// This auto-discovery approach finds zip files associated with the
-  /// current workflow step, useful when column data is not available.
+  /// current workflow step, useful when documentId is not in URL or column data.
   Future<String?> _tryFindFilesByWorkflowStep() async {
     try {
       if (_workflowId == null || _workflowId!.isEmpty ||
