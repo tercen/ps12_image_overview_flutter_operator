@@ -1,6 +1,19 @@
 import 'package:sci_tercen_client/sci_client_service_factory.dart';
 import 'package:sci_tercen_client/sci_client.dart' hide ServiceFactory;
 
+/// Container for resolved document IDs (both documentId and id columns).
+class ResolvedIds {
+  final String? documentId;
+  final String? id;
+
+  ResolvedIds({this.documentId, this.id});
+
+  bool get hasAnyId => documentId != null || id != null;
+
+  @override
+  String toString() => 'ResolvedIds(documentId: $documentId, id: $id)';
+}
+
 /// Resolves document IDs from Tercen context using multiple strategies.
 ///
 /// This class implements a hierarchical fallback approach to find the
@@ -31,29 +44,29 @@ class DocumentIdResolver {
 
   /// Resolves the document ID using hierarchical fallback strategy.
   ///
-  /// Returns the document ID if found, or null to trigger mock data fallback.
-  Future<String?> resolveDocumentId() async {
+  /// Returns both documentId and id column values if found, or null to trigger mock data fallback.
+  Future<ResolvedIds?> resolveDocumentId() async {
     print('🔍 DocumentIdResolver: Starting resolution process');
     print('   Available: taskId=${_taskId != null}, workflowId=${_workflowId != null}, stepId=${_stepId != null}');
 
     // Strategy 1: Extract from column data via taskId (PRIMARY - PRODUCTION)
-    final docIdFromColumns = await _tryGetFromColumnData();
-    if (docIdFromColumns != null) {
-      print('✓ DocumentIdResolver: Found documentId from column data: $docIdFromColumns');
-      return docIdFromColumns;
+    final idsFromColumns = await _tryGetFromColumnData();
+    if (idsFromColumns != null && idsFromColumns.hasAnyId) {
+      print('✓ DocumentIdResolver: Found IDs from column data: $idsFromColumns');
+      return idsFromColumns;
     }
 
     // Strategy 2: Search files by workflow/step (AUTO-DISCOVERY FALLBACK)
     final docIdFromFiles = await _tryFindFilesByWorkflowStep();
     if (docIdFromFiles != null) {
       print('✓ DocumentIdResolver: Found documentId by searching files: $docIdFromFiles');
-      return docIdFromFiles;
+      return ResolvedIds(documentId: docIdFromFiles);
     }
 
     // Strategy 3: Use development hardcoded ID (DEVELOPMENT)
     if (_devZipFileId != null && _devZipFileId!.isNotEmpty) {
       print('✓ DocumentIdResolver: Using development zip file ID: $_devZipFileId');
-      return _devZipFileId;
+      return ResolvedIds(documentId: _devZipFileId);
     }
 
     // Strategy 4: Return null for mock fallback
@@ -61,11 +74,12 @@ class DocumentIdResolver {
     return null;
   }
 
-  /// Strategy 1: Extract documentId from column data via Task's CubeQuery.
+  /// Strategy 1: Extract documentId and id from column data via Task's CubeQuery.
   ///
   /// This is the primary production approach. The documentId is provided as a
   /// column factor in the Tercen data step (like Shiny operators).
-  Future<String?> _tryGetFromColumnData() async {
+  /// Returns both documentId and id column values for fallback handling.
+  Future<ResolvedIds?> _tryGetFromColumnData() async {
     try {
       if (_taskId == null || _taskId!.isEmpty) {
         print('   ⊘ No taskId available, skipping column data extraction');
@@ -122,12 +136,15 @@ class DocumentIdResolver {
           final columnData = await _serviceFactory.tableSchemaService
               .select(columnHash, ['id'], 0, 1);
 
-          final docIdCol = columnData.columns.firstOrNull;
-          if (docIdCol != null && docIdCol.values != null && docIdCol.values.isNotEmpty) {
-            final documentId = docIdCol.values.first?.toString();
-            if (documentId != null && documentId.isNotEmpty) {
-              print('   ✓ Successfully extracted ID from "id" column: $documentId');
-              return documentId;
+          final docIdMatches = columnData.columns.where((c) => c.name == 'id');
+          if (docIdMatches.isNotEmpty) {
+            final docIdCol = docIdMatches.first;
+            if (docIdCol.values != null && docIdCol.values.isNotEmpty) {
+              final id = docIdCol.values.first?.toString();
+              if (id != null && id.isNotEmpty) {
+                print('   ✓ Successfully extracted ID from "id" column: $id');
+                return ResolvedIds(id: id);
+              }
             }
           }
         }
@@ -165,33 +182,42 @@ class DocumentIdResolver {
         print('   📋 Column "${col.name}": $firstValue');
       }
 
-      // Try documentId column first
+      // Extract both documentId and id column values
+      String? documentIdValue;
+      String? idValue;
+
+      // Get documentId column value
       final docIdMatches = columnData.columns.where((c) => c.name == 'documentId');
       if (docIdMatches.isNotEmpty) {
         final docIdColData = docIdMatches.first;
         if (docIdColData.values != null && docIdColData.values.isNotEmpty) {
-          final documentId = docIdColData.values.first?.toString();
-          if (documentId != null && documentId.isNotEmpty) {
-            print('   ✓ Successfully extracted documentId: $documentId');
-            return documentId;
+          documentIdValue = docIdColData.values.first?.toString();
+          if (documentIdValue != null && documentIdValue.isNotEmpty) {
+            print('   ✓ Successfully extracted documentId: $documentIdValue');
           }
         }
       }
 
-      // If documentId didn't work, try the 'id' column
+      // Get id column value
       final idMatches = columnData.columns.where((c) => c.name == 'id');
       if (idMatches.isNotEmpty) {
         final idColData = idMatches.first;
         if (idColData.values != null && idColData.values.isNotEmpty) {
-          final id = idColData.values.first?.toString();
-          if (id != null && id.isNotEmpty) {
-            print('   ℹ️ Trying "id" column value as documentId: $id');
-            return id;
+          idValue = idColData.values.first?.toString();
+          if (idValue != null && idValue.isNotEmpty) {
+            print('   ✓ Successfully extracted id: $idValue');
           }
         }
       }
 
-      print('   ⊘ Could not extract documentId value from table data');
+      // Return both values (even if one is null)
+      if (documentIdValue != null || idValue != null) {
+        final resolvedIds = ResolvedIds(documentId: documentIdValue, id: idValue);
+        print('   ✓ Returning resolved IDs: $resolvedIds');
+        return resolvedIds;
+      }
+
+      print('   ⊘ Could not extract any ID values from table data');
       return null;
     } catch (e, stackTrace) {
       print('   ✗ Error extracting documentId from column data: $e');

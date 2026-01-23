@@ -59,33 +59,65 @@ class TercenImageService implements ImageService {
     try {
       print('📋 TercenImageService.loadImages() started');
 
-      // Use DocumentIdResolver to get the document ID
-      final documentId = await _documentIdResolver.resolveDocumentId();
+      // Use DocumentIdResolver to get both document IDs
+      final resolvedIds = await _documentIdResolver.resolveDocumentId();
 
-      if (documentId == null) {
+      if (resolvedIds == null || !resolvedIds.hasAnyId) {
         // No document ID found, use mock data
-        print('⚠️ No document ID resolved, using mock data');
+        print('⚠️ No document IDs resolved, using mock data');
         _imageMetadata = _createMockMetadata();
         return ImageCollection(images: _imageMetadata!);
       }
 
-      print('✓ Resolved documentId: $documentId');
+      print('✓ Resolved IDs: $resolvedIds');
 
       // Get FileService from Tercen ServiceFactory
       final fileService = _serviceFactory.fileService;
 
-      // Fetch the file document
+      // Fetch the file document with fallback logic
+      // Strategy 1: Try documentId first (PRIMARY)
+      // Strategy 2: If that fails, try id column value (FALLBACK)
       List<FileDocument> files;
-      try {
-        final zipFile = await fileService.get(documentId);
-        files = [zipFile];
-        print('✓ Successfully loaded file: ${zipFile.name}');
-      } catch (e) {
-        print('✗ Error loading file $documentId: $e');
-        print('Falling back to mock data');
+      FileDocument? zipFile;
+
+      if (resolvedIds.documentId != null) {
+        try {
+          print('   🔍 Attempting to load file with documentId: ${resolvedIds.documentId}');
+          zipFile = await fileService.get(resolvedIds.documentId!);
+          print('   ✓ Successfully loaded file with documentId: ${zipFile.name}');
+        } catch (e) {
+          print('   ✗ Error loading file with documentId ${resolvedIds.documentId}: $e');
+
+          // Try fallback to id column value
+          if (resolvedIds.id != null) {
+            try {
+              print('   🔄 Attempting fallback to id column value: ${resolvedIds.id}');
+              zipFile = await fileService.get(resolvedIds.id!);
+              print('   ✓ Successfully loaded file with id fallback: ${zipFile.name}');
+            } catch (e2) {
+              print('   ✗ Error loading file with id ${resolvedIds.id}: $e2');
+            }
+          }
+        }
+      } else if (resolvedIds.id != null) {
+        // No documentId, try id directly
+        try {
+          print('   🔍 Attempting to load file with id: ${resolvedIds.id}');
+          zipFile = await fileService.get(resolvedIds.id!);
+          print('   ✓ Successfully loaded file with id: ${zipFile.name}');
+        } catch (e) {
+          print('   ✗ Error loading file with id ${resolvedIds.id}: $e');
+        }
+      }
+
+      // If both strategies failed, fall back to mock data
+      if (zipFile == null) {
+        print('⚠️ All file loading strategies failed, falling back to mock data');
         _imageMetadata = _createMockMetadata();
         return ImageCollection(images: _imageMetadata!);
       }
+
+      files = [zipFile];
 
       // Process files - handle both individual TIFF files and zip archives
       final List<ImageMetadata> allMetadata = [];
