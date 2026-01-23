@@ -19,7 +19,6 @@ final GetIt locator = getIt;
 ///     real implementations using Tercen API.
 ///   - [tercenFactory]: Required when useMocks is false. The initialized
 ///     Tercen ServiceFactory for API access.
-///   - [documentId]: Optional document ID from URL path (/_w3op/{documentId})
 ///   - [taskId]: Optional task ID from Tercen URL query parameters
 ///   - [workflowId]: Optional workflow ID for Tercen context
 ///   - [stepId]: Optional step ID for Tercen context
@@ -40,7 +39,6 @@ final GetIt locator = getIt;
 void setupServiceLocator({
   bool useMocks = true,
   ServiceFactory? tercenFactory,
-  String? documentId,
   String? taskId,
   String? workflowId,
   String? stepId,
@@ -63,7 +61,6 @@ void setupServiceLocator({
     locator.registerSingleton<ImageService>(
       TercenImageService(
         tercenFactory,
-        documentId: documentId,
         taskId: taskId,
         workflowId: workflowId,
         stepId: stepId,

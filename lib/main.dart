@@ -38,21 +38,11 @@ void main() async {
     String? taskId = queryParams['taskId'];
     String? workflowId = queryParams['workflowId'];
     String? stepId = queryParams['stepId'];
-    String? documentId;
 
     print('📥 Query parameters:');
     print('   taskId: $taskId');
     print('   workflowId: $workflowId');
     print('   stepId: $stepId');
-
-    // Extract documentId from URL path: /_w3op/{documentId}
-    if (pathSegments.contains('_w3op') && pathSegments.length > 1) {
-      final index = pathSegments.indexOf('_w3op');
-      if (index + 1 < pathSegments.length) {
-        documentId = pathSegments[index + 1];
-        print('✓ Found documentId in URL path: $documentId');
-      }
-    }
 
     // Also check path segments for workflow mode (legacy support)
     if (pathSegments.contains('w') && pathSegments.contains('ds')) {
@@ -68,23 +58,22 @@ void main() async {
     // Fallback to environment variables for local development
     workflowId ??= const String.fromEnvironment('WORKFLOW_ID');
     stepId ??= const String.fromEnvironment('STEP_ID');
-    documentId ??= const String.fromEnvironment('DEV_ZIP_FILE_ID');
+    final devZipFileId = const String.fromEnvironment('DEV_ZIP_FILE_ID');
 
     print('📋 Final configuration:');
     print('   taskId: $taskId');
     print('   workflowId: $workflowId');
     print('   stepId: $stepId');
-    print('   documentId (dev): $documentId');
+    print('   devZipFileId: $devZipFileId');
 
     // Set up service locator with real Tercen services
     setupServiceLocator(
       useMocks: false,
       tercenFactory: tercenFactory,
-      documentId: documentId?.isEmpty ?? true ? null : documentId,
       taskId: taskId,
       workflowId: workflowId?.isEmpty ?? true ? null : workflowId,
       stepId: stepId?.isEmpty ?? true ? null : stepId,
-      devZipFileId: const String.fromEnvironment('DEV_ZIP_FILE_ID'),
+      devZipFileId: devZipFileId.isEmpty ? null : devZipFileId,
     );
   }
 
