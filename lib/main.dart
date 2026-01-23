@@ -24,34 +24,35 @@ void main() async {
     // Initialize Tercen ServiceFactory with token and URI from environment
     final tercenFactory = await createServiceFactoryForWebApp();
 
-    // Parse URL path segments to detect deployment mode
-    final pathSegments = Uri.base.pathSegments;
-    String? workflowId;
-    String? stepId;
-    String? documentId;
+    // Parse URL to extract Tercen parameters
+    final uri = Uri.base;
+    final pathSegments = uri.pathSegments;
+    final queryParams = uri.queryParameters;
 
     print('🔍 URL Analysis:');
-    print('   Full URL: ${Uri.base}');
+    print('   Full URL: $uri');
     print('   Path segments: $pathSegments');
+    print('   Query parameters: ${queryParams.keys.join(", ")}');
 
-    // Detect deployment mode from URL structure:
-    // Mode 1 (Standalone): /_w3op/{documentId}/
-    // Mode 2 (Workflow): /w/{workflowId}/ds/{stepId}
-    if (pathSegments.contains('_w3op') && pathSegments.length > 1) {
-      // Standalone app mode: Extract document ID
-      final index = pathSegments.indexOf('_w3op');
-      if (index + 1 < pathSegments.length) {
-        documentId = pathSegments[index + 1];
-        print('✓ Detected STANDALONE mode: documentId=$documentId');
-      }
-    } else if (pathSegments.contains('w') && pathSegments.contains('ds')) {
-      // Workflow step mode: Extract workflowId and stepId
+    // Extract parameters from query string (primary source for operators)
+    String? taskId = queryParams['taskId'];
+    String? workflowId = queryParams['workflowId'];
+    String? stepId = queryParams['stepId'];
+    String? documentId;
+
+    print('📥 Query parameters:');
+    print('   taskId: $taskId');
+    print('   workflowId: $workflowId');
+    print('   stepId: $stepId');
+
+    // Also check path segments for workflow mode (legacy support)
+    if (pathSegments.contains('w') && pathSegments.contains('ds')) {
       final wIndex = pathSegments.indexOf('w');
       final dsIndex = pathSegments.indexOf('ds');
       if (wIndex + 1 < pathSegments.length && dsIndex + 1 < pathSegments.length) {
-        workflowId = pathSegments[wIndex + 1];
-        stepId = pathSegments[dsIndex + 1];
-        print('✓ Detected WORKFLOW mode: workflowId=$workflowId, stepId=$stepId');
+        workflowId ??= pathSegments[wIndex + 1];
+        stepId ??= pathSegments[dsIndex + 1];
+        print('📋 Also found in path: workflowId=$workflowId, stepId=$stepId');
       }
     }
 
@@ -61,17 +62,19 @@ void main() async {
     documentId ??= const String.fromEnvironment('DEV_ZIP_FILE_ID');
 
     print('📋 Final configuration:');
+    print('   taskId: $taskId');
     print('   workflowId: $workflowId');
     print('   stepId: $stepId');
-    print('   documentId: $documentId');
+    print('   documentId (dev): $documentId');
 
     // Set up service locator with real Tercen services
     setupServiceLocator(
       useMocks: false,
       tercenFactory: tercenFactory,
-      workflowId: workflowId.isEmpty ? null : workflowId,
-      stepId: stepId.isEmpty ? null : stepId,
-      devZipFileId: documentId.isEmpty ? null : documentId,
+      taskId: taskId,
+      workflowId: workflowId?.isEmpty ?? true ? null : workflowId,
+      stepId: stepId?.isEmpty ?? true ? null : stepId,
+      devZipFileId: documentId?.isEmpty ?? true ? null : documentId,
     );
   }
 

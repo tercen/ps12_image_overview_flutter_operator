@@ -8,6 +8,7 @@ import 'package:ps12_image_overview/models/image_metadata_impl.dart';
 import 'package:ps12_image_overview/services/image_service.dart';
 import 'package:ps12_image_overview/utils/image_bytes_cache.dart';
 import 'package:ps12_image_overview/utils/tiff_converter.dart';
+import 'package:ps12_image_overview/utils/document_id_resolver.dart';
 import 'package:sci_tercen_client/sci_client_service_factory.dart';
 import 'package:sci_tercen_client/sci_client.dart' show FileDocument;
 
@@ -24,9 +25,7 @@ import 'package:sci_tercen_client/sci_client.dart' show FileDocument;
 class TercenImageService implements ImageService {
   final ServiceFactory _serviceFactory;
   final ImageBytesCache _cache;
-  final String? _workflowId;
-  final String? _stepId;
-  final String? _devZipFileId;
+  final DocumentIdResolver _documentIdResolver;
 
   /// Cached image metadata loaded on startup
   List<ImageMetadata>? _imageMetadata;
@@ -42,61 +41,48 @@ class TercenImageService implements ImageService {
 
   TercenImageService(
     this._serviceFactory, {
+    String? taskId,
     String? workflowId,
     String? stepId,
     String? devZipFileId,
   })  : _cache = ImageBytesCache(),
-        _workflowId = workflowId ?? const String.fromEnvironment('WORKFLOW_ID'),
-        _stepId = stepId ?? const String.fromEnvironment('STEP_ID'),
-        _devZipFileId = devZipFileId ??
-            const String.fromEnvironment(
-              'DEV_ZIP_FILE_ID',
-              // 🔧 DEVELOPMENT: Replace the empty string below with your zip file ID
-              // Example: defaultValue: '67890abcdef1234567890abc'
-              defaultValue: '9d8fdc8ec1d6f203834caa17f10038cb', // <-- Put your zip file ID here
-            );
+        _documentIdResolver = DocumentIdResolver(
+          serviceFactory: _serviceFactory,
+          taskId: taskId,
+          workflowId: workflowId,
+          stepId: stepId,
+          devZipFileId: devZipFileId,
+        );
 
   @override
   Future<ImageCollection> loadImages() async {
     try {
+      print('📋 TercenImageService.loadImages() started');
+
+      // Use DocumentIdResolver to get the document ID
+      final documentId = await _documentIdResolver.resolveDocumentId();
+
+      if (documentId == null) {
+        // No document ID found, use mock data
+        print('⚠️ No document ID resolved, using mock data');
+        _imageMetadata = _createMockMetadata();
+        return ImageCollection(images: _imageMetadata!);
+      }
+
+      print('✓ Resolved documentId: $documentId');
+
       // Get FileService from Tercen ServiceFactory
       final fileService = _serviceFactory.fileService;
 
-      // Debug: Print what we received
-      print('📋 TercenImageService received:');
-      print('   workflowId: $_workflowId');
-      print('   stepId: $_stepId');
-      print('   devZipFileId: $_devZipFileId');
-
-      // Fetch FileDocuments from Tercen
+      // Fetch the file document
       List<FileDocument> files;
-
-      if (_workflowId != null && _workflowId!.isNotEmpty &&
-          _stepId != null && _stepId!.isNotEmpty) {
-        // Production: Query by workflow and step
-        print('✓ Using production path: findFileByWorkflowIdAndStepId');
-        files = await fileService.findFileByWorkflowIdAndStepId(
-          startKey: [_workflowId, _stepId],
-          endKey: [_workflowId, _stepId, {}],
-          limit: 1000,
-        );
-        print('✓ Found ${files.length} files from workflow/step query');
-      } else if (_devZipFileId != null && _devZipFileId!.isNotEmpty) {
-        // Development: Use hardcoded zip file ID
-        print('🔧 DEV MODE: Using hardcoded zip file ID: $_devZipFileId');
-        try {
-          final zipFile = await fileService.get(_devZipFileId!);
-          files = [zipFile];
-          print('✓ Successfully loaded dev zip file: ${zipFile.name}');
-        } catch (e) {
-          print('✗ Error loading dev zip file $_devZipFileId: $e');
-          print('Falling back to mock data');
-          _imageMetadata = _createMockMetadata();
-          return ImageCollection(images: _imageMetadata!);
-        }
-      } else {
-        // Fallback: Use mock data
-        print('⚠️  No WORKFLOW_ID/STEP_ID or DEV_ZIP_FILE_ID set, using mock data');
+      try {
+        final zipFile = await fileService.get(documentId);
+        files = [zipFile];
+        print('✓ Successfully loaded file: ${zipFile.name}');
+      } catch (e) {
+        print('✗ Error loading file $documentId: $e');
+        print('Falling back to mock data');
         _imageMetadata = _createMockMetadata();
         return ImageCollection(images: _imageMetadata!);
       }
