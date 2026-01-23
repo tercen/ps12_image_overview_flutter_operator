@@ -111,17 +111,42 @@ class DocumentIdResolver {
 
       // Check if documentId column exists
       final docIdColumn = columnSchema.columns.where((col) => col.name == 'documentId').firstOrNull;
+      final idColumn = columnSchema.columns.where((col) => col.name == 'id').firstOrNull;
+
       if (docIdColumn == null) {
         print('   ⊘ No "documentId" column found in schema');
+
+        // Try 'id' column as fallback
+        if (idColumn != null) {
+          print('   ℹ️ Found "id" column, will try that instead');
+          final columnData = await _serviceFactory.tableSchemaService
+              .select(columnHash, ['id'], 0, 1);
+
+          final docIdCol = columnData.columns.firstOrNull;
+          if (docIdCol != null && docIdCol.values != null && docIdCol.values.isNotEmpty) {
+            final documentId = docIdCol.values.first?.toString();
+            if (documentId != null && documentId.isNotEmpty) {
+              print('   ✓ Successfully extracted ID from "id" column: $documentId');
+              return documentId;
+            }
+          }
+        }
+
         return null;
       }
 
       print('   ✓ Found "documentId" column');
 
-      // Select the documentId column data - get first row only
+      // Select both documentId and id columns if available - get first row only
       print('   🔍 Fetching documentId data from table...');
+      final columnsToFetch = ['documentId'];
+      if (idColumn != null) {
+        columnsToFetch.add('id');
+        print('   ℹ️ Also fetching "id" column for comparison');
+      }
+
       final columnData = await _serviceFactory.tableSchemaService
-          .select(columnHash, ['documentId'], 0, 1);
+          .select(columnHash, columnsToFetch, 0, 1);
 
       print('   ✓ Received table data');
       print('   ✓ Table type: ${columnData.runtimeType}');
@@ -129,28 +154,33 @@ class DocumentIdResolver {
       print('   ✓ Table nRows: ${columnData.nRows}');
 
       // Try to extract the documentId value
-      // The Table object structure needs investigation - log what we find
       if (columnData.nRows == 0) {
         print('   ⊘ Table has no rows');
         return null;
       }
 
-      // Attempt to access the data through the columns
-      final docIdCol = columnData.columns.firstOrNull;
-      if (docIdCol != null) {
-        print('   ✓ First column name: ${docIdCol.name}');
-        print('   ✓ First column type: ${docIdCol.type}');
+      // Log all column values we received
+      for (final col in columnData.columns) {
+        print('   📋 Column "${col.name}": ${col.values?.firstOrNull}');
+      }
 
-        // Try to access column values if available
-        if (docIdCol.values != null && docIdCol.values.isNotEmpty) {
-          final documentId = docIdCol.values.first?.toString();
-          if (documentId != null && documentId.isNotEmpty) {
-            print('   ✓ Successfully extracted documentId: $documentId');
-            return documentId;
-          }
-        } else {
-          print('   ⚠️ Column values property is null or empty');
-          print('   ℹ️ Column object: ${docIdCol.toJson()}');
+      // Try documentId column first
+      final docIdColData = columnData.columns.where((c) => c.name == 'documentId').firstOrNull;
+      if (docIdColData != null && docIdColData.values != null && docIdColData.values.isNotEmpty) {
+        final documentId = docIdColData.values.first?.toString();
+        if (documentId != null && documentId.isNotEmpty) {
+          print('   ✓ Successfully extracted documentId: $documentId');
+          return documentId;
+        }
+      }
+
+      // If documentId didn't work, try the 'id' column
+      final idColData = columnData.columns.where((c) => c.name == 'id').firstOrNull;
+      if (idColData != null && idColData.values != null && idColData.values.isNotEmpty) {
+        final id = idColData.values.first?.toString();
+        if (id != null && id.isNotEmpty) {
+          print('   ℹ️ Trying "id" column value as documentId: $id');
+          return id;
         }
       }
 
