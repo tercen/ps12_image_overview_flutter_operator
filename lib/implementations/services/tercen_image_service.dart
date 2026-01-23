@@ -71,8 +71,9 @@ class TercenImageService implements ImageService {
 
       print('✓ Resolved IDs: $resolvedIds');
 
-      // Get FileService from Tercen ServiceFactory
+      // Get services from Tercen ServiceFactory
       final fileService = _serviceFactory.fileService;
+      final documentService = _serviceFactory.documentService;
 
       // Fetch the file document with fallback logic
       // Strategy 1: Try documentId first (PRIMARY)
@@ -81,32 +82,76 @@ class TercenImageService implements ImageService {
       FileDocument? zipFile;
 
       if (resolvedIds.documentId != null) {
+        // First, try to resolve via DocumentService to see what type it is
         try {
-          print('   🔍 Attempting to load file with documentId: ${resolvedIds.documentId}');
-          zipFile = await fileService.get(resolvedIds.documentId!);
-          print('   ✓ Successfully loaded file with documentId: ${zipFile.name}');
-        } catch (e) {
-          print('   ✗ Error loading file with documentId ${resolvedIds.documentId}: $e');
+          print('   🔍 Attempting to resolve documentId via DocumentService: ${resolvedIds.documentId}');
+          final doc = await documentService.get(resolvedIds.documentId!);
+          print('   ✓ Successfully resolved document');
+          print('   📄 Document type: ${doc.runtimeType}');
+          print('   📄 Document kind: ${doc.kind}');
+          print('   📄 Document name: ${doc.name}');
 
-          // Try fallback to id column value
-          if (resolvedIds.id != null) {
+          if (doc is FileDocument) {
+            print('   ✓ Document is a FileDocument, using it directly');
+            zipFile = doc;
+          } else {
+            print('   ⚠️ Document is not a FileDocument (it is ${doc.runtimeType})');
+            // Try FileService as fallback
+            print('   🔄 Attempting FileService.get() as fallback');
             try {
-              print('   🔄 Attempting fallback to id column value: ${resolvedIds.id}');
-              zipFile = await fileService.get(resolvedIds.id!);
-              print('   ✓ Successfully loaded file with id fallback: ${zipFile.name}');
+              zipFile = await fileService.get(resolvedIds.documentId!);
+              print('   ✓ FileService fallback succeeded: ${zipFile.name}');
             } catch (e2) {
-              print('   ✗ Error loading file with id ${resolvedIds.id}: $e2');
+              print('   ✗ FileService fallback also failed: $e2');
+            }
+          }
+        } catch (e) {
+          print('   ✗ Error resolving documentId via DocumentService: $e');
+
+          // Try FileService directly as fallback
+          try {
+            print('   🔄 Attempting to load file with FileService.get(): ${resolvedIds.documentId}');
+            zipFile = await fileService.get(resolvedIds.documentId!);
+            print('   ✓ Successfully loaded file with FileService: ${zipFile.name}');
+          } catch (e2) {
+            print('   ✗ Error loading file with FileService ${resolvedIds.documentId}: $e2');
+
+            // Try fallback to id column value
+            if (resolvedIds.id != null) {
+              try {
+                print('   🔄 Attempting fallback to id column value via DocumentService: ${resolvedIds.id}');
+                final idDoc = await documentService.get(resolvedIds.id!);
+                print('   ✓ Successfully resolved id via DocumentService');
+                print('   📄 ID document type: ${idDoc.runtimeType}');
+
+                if (idDoc is FileDocument) {
+                  print('   ✓ ID document is a FileDocument, using it');
+                  zipFile = idDoc;
+                } else {
+                  print('   ⚠️ ID document is not a FileDocument');
+                }
+              } catch (e3) {
+                print('   ✗ Error resolving id ${resolvedIds.id}: $e3');
+              }
             }
           }
         }
       } else if (resolvedIds.id != null) {
-        // No documentId, try id directly
+        // No documentId, try id directly via DocumentService
         try {
-          print('   🔍 Attempting to load file with id: ${resolvedIds.id}');
-          zipFile = await fileService.get(resolvedIds.id!);
-          print('   ✓ Successfully loaded file with id: ${zipFile.name}');
+          print('   🔍 Attempting to resolve id via DocumentService: ${resolvedIds.id}');
+          final doc = await documentService.get(resolvedIds.id!);
+          print('   ✓ Successfully resolved id document');
+          print('   📄 Document type: ${doc.runtimeType}');
+
+          if (doc is FileDocument) {
+            print('   ✓ ID is a FileDocument, using it');
+            zipFile = doc;
+          } else {
+            print('   ⚠️ ID is not a FileDocument (it is ${doc.runtimeType})');
+          }
         } catch (e) {
-          print('   ✗ Error loading file with id ${resolvedIds.id}: $e');
+          print('   ✗ Error resolving id ${resolvedIds.id}: $e');
         }
       }
 
