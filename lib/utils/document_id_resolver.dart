@@ -281,6 +281,7 @@ class DocumentIdResolver {
         startKey: [_workflowId, _stepId],
         endKey: [_workflowId, _stepId, {}],
         limit: 10,
+        descending: false,
       );
 
       print('   ✓ Found ${files.length} files');
