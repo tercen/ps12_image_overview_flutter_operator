@@ -143,6 +143,65 @@ class DocumentIdResolver {
 
       print('   ✓ Task has CubeQuery');
 
+      // CRITICAL: Try to extract .documentId directly from task JSON first
+      // The tableSchemaService filters out dot-prefixed columns, but they're
+      // present in the task's query.relation structure
+      print('   🔍 Attempting to extract .documentId directly from task JSON...');
+      try {
+        final taskJson = cubeTask.toJson();
+        final queryJson = taskJson['query'] as Map?;
+
+        if (queryJson != null && queryJson['relation'] != null) {
+          String? dotDocumentId;
+          String? documentId;
+
+          // Navigate through relation structure to find InMemoryTable
+          // Structure can be: RenameRelation -> InMemoryRelation -> inMemoryTable
+          // Or directly: InMemoryRelation -> inMemoryTable
+          var currentRelation = queryJson['relation'] as Map?;
+
+          while (currentRelation != null) {
+            // Check if this is an InMemoryRelation with inMemoryTable
+            if (currentRelation['kind'] == 'InMemoryRelation' &&
+                currentRelation['inMemoryTable'] != null) {
+              final inMemoryTable = currentRelation['inMemoryTable'] as Map;
+              final columns = inMemoryTable['columns'] as List?;
+
+              if (columns != null) {
+                for (final col in columns) {
+                  final colMap = col as Map;
+                  final name = colMap['name'] as String?;
+                  final values = colMap['values'] as List?;
+
+                  if (name == '.documentId' && values != null && values.isNotEmpty) {
+                    dotDocumentId = values.first?.toString();
+                    print('   ✓ Found .documentId in task JSON: $dotDocumentId');
+                  } else if (name == 'documentId' && values != null && values.isNotEmpty) {
+                    documentId = values.first?.toString();
+                    print('   ✓ Found documentId in task JSON: $documentId');
+                  }
+                }
+              }
+              break;
+            }
+
+            // Navigate to nested relation if present
+            currentRelation = currentRelation['relation'] as Map?;
+          }
+
+          // If we found .documentId in the task JSON, return it immediately
+          if (dotDocumentId != null && dotDocumentId.isNotEmpty) {
+            print('   ✓ Extracted .documentId from task JSON, skipping schema service');
+            return ResolvedIds(documentId: dotDocumentId);
+          } else if (documentId != null && documentId.isNotEmpty) {
+            print('   ⚠️ Only found documentId (alias) in task JSON, will continue with schema service');
+          }
+        }
+      } catch (e) {
+        print('   ⚠️ Error extracting from task JSON: $e');
+        print('   ℹ️ Will continue with schema service approach');
+      }
+
       // Get column schema from the query
       final columnHash = query.columnHash;
       if (columnHash == null || columnHash.isEmpty) {
