@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sci_tercen_client/sci_client_service_factory.dart';
 import 'package:sci_tercen_client/sci_client.dart' hide ServiceFactory;
 
@@ -92,6 +93,17 @@ class DocumentIdResolver {
       final task = await _serviceFactory.taskService.get(_taskId!);
       print('   ✓ Retrieved task: ${task.id}');
       print('   ✓ Task type: ${task.runtimeType}');
+
+      // DEBUG: Print full task JSON for analysis
+      try {
+        final taskJson = task.toJson();
+        final encoder = const JsonEncoder.withIndent('  ');
+        final prettyJson = encoder.convert(taskJson);
+        print('   📋 FULL TASK JSON:');
+        print(prettyJson);
+      } catch (e) {
+        print('   ⚠️ Could not serialize task to JSON: $e');
+      }
 
       // Handle both RunWebAppTask and CubeQueryTask
       CubeQueryTask? cubeTask;
