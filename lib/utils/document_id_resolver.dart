@@ -92,31 +92,17 @@ class DocumentIdResolver {
       // Get the task object
       final task = await _serviceFactory.taskService.get(_taskId!);
       print('   ✓ Retrieved task: ${task.id}');
-      print('   ✓ Task type: ${task.runtimeType}');
-
-      // DEBUG: Print full task JSON for analysis
-      try {
-        final taskJson = task.toJson();
-        final encoder = const JsonEncoder.withIndent('  ');
-        final prettyJson = encoder.convert(taskJson);
-        print('   📋 FULL TASK JSON:');
-        print(prettyJson);
-      } catch (e) {
-        print('   ⚠️ Could not serialize task to JSON: $e');
-      }
 
       // Handle both RunWebAppTask and CubeQueryTask
       CubeQueryTask? cubeTask;
 
       if (task is RunWebAppTask) {
-        print('   ✓ Task is RunWebAppTask, extracting cubeQueryTaskId');
         final cubeQueryTaskId = task.cubeQueryTaskId;
         if (cubeQueryTaskId.isEmpty) {
           print('   ⊘ RunWebAppTask has empty cubeQueryTaskId');
           return null;
         }
 
-        print('   🔍 Fetching CubeQueryTask: $cubeQueryTaskId');
         final cubeTaskObj = await _serviceFactory.taskService.get(cubeQueryTaskId);
 
         if (cubeTaskObj is! CubeQueryTask) {
@@ -125,9 +111,7 @@ class DocumentIdResolver {
         }
 
         cubeTask = cubeTaskObj as CubeQueryTask;
-        print('   ✓ Successfully retrieved CubeQueryTask');
       } else if (task is CubeQueryTask) {
-        print('   ✓ Task is already a CubeQueryTask');
         cubeTask = task as CubeQueryTask;
       } else {
         print('   ⊘ Task is neither RunWebAppTask nor CubeQueryTask: ${task.runtimeType}');
@@ -141,27 +125,18 @@ class DocumentIdResolver {
         return null;
       }
 
-      print('   ✓ Task has CubeQuery');
-
-      // CRITICAL: Try to extract .documentId directly from task JSON first
-      // The tableSchemaService filters out dot-prefixed columns, but they're
-      // present in the task's query.relation structure
-      print('   🔍 Attempting to extract .documentId directly from task JSON...');
+      // Try to extract .documentId directly from task JSON first
+      // The tableSchemaService filters out dot-prefixed columns, but they're in the task JSON
       try {
         final taskJson = cubeTask.toJson();
         final queryJson = taskJson['query'] as Map?;
 
         if (queryJson != null && queryJson['relation'] != null) {
           String? dotDocumentId;
-          String? documentId;
-
-          // Navigate through relation structure to find InMemoryTable
-          // Structure can be: RenameRelation -> InMemoryRelation -> inMemoryTable
-          // Or directly: InMemoryRelation -> inMemoryTable
           var currentRelation = queryJson['relation'] as Map?;
 
+          // Navigate through relation structure to find InMemoryTable
           while (currentRelation != null) {
-            // Check if this is an InMemoryRelation with inMemoryTable
             if (currentRelation['kind'] == 'InMemoryRelation' &&
                 currentRelation['inMemoryTable'] != null) {
               final inMemoryTable = currentRelation['inMemoryTable'] as Map;
@@ -175,53 +150,32 @@ class DocumentIdResolver {
 
                   if (name == '.documentId' && values != null && values.isNotEmpty) {
                     dotDocumentId = values.first?.toString();
-                    print('   ✓ Found .documentId in task JSON: $dotDocumentId');
-                  } else if (name == 'documentId' && values != null && values.isNotEmpty) {
-                    documentId = values.first?.toString();
-                    print('   ✓ Found documentId in task JSON: $documentId');
                   }
                 }
               }
               break;
             }
-
-            // Navigate to nested relation if present
             currentRelation = currentRelation['relation'] as Map?;
           }
 
-          // If we found .documentId in the task JSON, return it immediately
+          // If we found .documentId, return it immediately
           if (dotDocumentId != null && dotDocumentId.isNotEmpty) {
-            print('   ✓ Extracted .documentId from task JSON, skipping schema service');
+            print('   ✓ Extracted .documentId: $dotDocumentId');
             return ResolvedIds(documentId: dotDocumentId);
-          } else if (documentId != null && documentId.isNotEmpty) {
-            print('   ⚠️ Only found documentId (alias) in task JSON, will continue with schema service');
           }
         }
       } catch (e) {
         print('   ⚠️ Error extracting from task JSON: $e');
-        print('   ℹ️ Will continue with schema service approach');
       }
 
-      // Get column schema from the query
+      // Fallback: Get column schema from the query
       final columnHash = query.columnHash;
       if (columnHash == null || columnHash.isEmpty) {
         print('   ⊘ Query has no columnHash');
         return null;
       }
 
-      print('   ✓ Column hash: $columnHash');
-
-      // Get the column schema
       final columnSchema = await _serviceFactory.tableSchemaService.get(columnHash);
-      print('   ✓ Retrieved column schema with ${columnSchema.nRows} rows');
-      print('   ✓ Column names: ${columnSchema.columns.map((c) => c.name).join(", ")}');
-
-      // DEBUG: Print ALL column details
-      print('   🔍 DETAILED COLUMN INSPECTION:');
-      for (var i = 0; i < columnSchema.columns.length; i++) {
-        final col = columnSchema.columns[i];
-        print('      Column[$i]: name="${col.name}", type=${col.runtimeType}');
-      }
 
       // Check for .documentId (fundamental), documentId (alias), and id columns
       // Prefer .documentId as it contains the real FileDocument ID
@@ -254,15 +208,7 @@ class DocumentIdResolver {
         return null;
       }
 
-      if (dotDocIdColumn != null) {
-        print('   ✓ Found ".documentId" column (fundamental)');
-      }
-      if (docIdColumn != null) {
-        print('   ✓ Found "documentId" column (alias)');
-      }
-
       // Select columns - prefer .documentId, then documentId, plus id if available
-      print('   🔍 Fetching documentId data from table...');
       final columnsToFetch = <String>[];
       if (dotDocIdColumn != null) {
         columnsToFetch.add('.documentId');
@@ -272,27 +218,14 @@ class DocumentIdResolver {
       }
       if (idColumn != null) {
         columnsToFetch.add('id');
-        print('   ℹ️ Also fetching "id" column for comparison');
       }
 
       final columnData = await _serviceFactory.tableSchemaService
           .select(columnHash, columnsToFetch, 0, 1);
 
-      print('   ✓ Received table data');
-      print('   ✓ Table type: ${columnData.runtimeType}');
-      print('   ✓ Table columns: ${columnData.columns.length}');
-      print('   ✓ Table nRows: ${columnData.nRows}');
-
-      // Try to extract the documentId value
       if (columnData.nRows == 0) {
         print('   ⊘ Table has no rows');
         return null;
-      }
-
-      // Log all column values we received
-      for (final col in columnData.columns) {
-        final firstValue = col.values != null && col.values.isNotEmpty ? col.values.first : null;
-        print('   📋 Column "${col.name}": $firstValue');
       }
 
       // Extract documentId (prefer .documentId over documentId) and id column values
@@ -305,9 +238,6 @@ class DocumentIdResolver {
         final dotDocIdColData = dotDocIdMatches.first;
         if (dotDocIdColData.values != null && dotDocIdColData.values.isNotEmpty) {
           documentIdValue = dotDocIdColData.values.first?.toString();
-          if (documentIdValue != null && documentIdValue.isNotEmpty) {
-            print('   ✓ Successfully extracted .documentId (fundamental): $documentIdValue');
-          }
         }
       }
 
@@ -318,9 +248,6 @@ class DocumentIdResolver {
           final docIdColData = docIdMatches.first;
           if (docIdColData.values != null && docIdColData.values.isNotEmpty) {
             documentIdValue = docIdColData.values.first?.toString();
-            if (documentIdValue != null && documentIdValue.isNotEmpty) {
-              print('   ✓ Successfully extracted documentId (alias): $documentIdValue');
-            }
           }
         }
       }
@@ -331,16 +258,13 @@ class DocumentIdResolver {
         final idColData = idMatches.first;
         if (idColData.values != null && idColData.values.isNotEmpty) {
           idValue = idColData.values.first?.toString();
-          if (idValue != null && idValue.isNotEmpty) {
-            print('   ✓ Successfully extracted id: $idValue');
-          }
         }
       }
 
       // Return both values (even if one is null)
       if (documentIdValue != null || idValue != null) {
         final resolvedIds = ResolvedIds(documentId: documentIdValue, id: idValue);
-        print('   ✓ Returning resolved IDs: $resolvedIds');
+        print('   ✓ Resolved IDs from schema: $resolvedIds');
         return resolvedIds;
       }
 

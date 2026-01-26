@@ -391,19 +391,34 @@ class TercenImageService implements ImageService {
       if (pngBytes != null) {
         // Cache the converted PNG
         _cache.put(request.imageId, pngBytes);
-        print(
-            'Converted and cached image ${request.imageId} (${pngBytes.length ~/ 1024} KB)');
       } else {
-        print('Failed to convert TIFF to PNG for image ${request.imageId}');
+        print('⚠️ Failed to convert TIFF to PNG for image ${request.imageId}');
       }
 
       request.completer.complete(pngBytes);
     } on TimeoutException {
-      print('Timeout downloading image ${request.imageId}');
+      print('⏱️ Timeout downloading image ${request.imageId} (exceeded 30 seconds)');
+      request.completer.complete(null);
+    } on StateError catch (e) {
+      print('⚠️ Image metadata error for ${request.imageId}: $e');
       request.completer.complete(null);
     } catch (e, stackTrace) {
-      print('Error fetching image ${request.imageId}: $e');
-      print(stackTrace);
+      final errorMsg = e.toString().toLowerCase();
+
+      // Provide specific error messages based on error type
+      if (errorMsg.contains('format') || errorMsg.contains('invalid') ||
+          errorMsg.contains('corrupt')) {
+        print('❌ Corrupted image file ${request.imageId}: $e');
+      } else if (errorMsg.contains('not found') || errorMsg.contains('404')) {
+        print('❌ Image file not found ${request.imageId}: $e');
+      } else if (errorMsg.contains('zip')) {
+        print('❌ ZIP entry error for ${request.imageId}: $e');
+        print('   The ZIP archive may be corrupted or the entry path may be invalid');
+      } else {
+        print('❌ Error fetching image ${request.imageId}: $e');
+        print('   Stack trace: $stackTrace');
+      }
+
       request.completer.complete(null);
     }
   }
@@ -488,6 +503,11 @@ class TercenImageService implements ImageService {
 
       print('Found ${zipEntries.length} entries in zip file $zipFileId');
 
+      if (zipEntries.isEmpty) {
+        print('⚠️ ZIP file is empty or could not be read');
+        return images;
+      }
+
       // Filter for TIFF files and create metadata
       for (final entry in zipEntries) {
         final entryName = entry.name as String;
@@ -495,12 +515,6 @@ class TercenImageService implements ImageService {
         if (_isTiffFile(entryName)) {
           // Parse filename to extract metadata
           final metadata = TiffConverter.parseFilename(entryName);
-
-          // DEBUG: Print first few filenames and parsed metadata
-          if (images.length < 5) {
-            print('📄 Filename: $entryName');
-            print('   Parsed: $metadata');
-          }
 
           // Generate unique ID combining zip file ID and entry path
           final uniqueId = '${zipFileId}_${entryName.replaceAll('/', '_')}';
@@ -529,9 +543,30 @@ class TercenImageService implements ImageService {
       }
 
       print('Extracted ${images.length} TIFF files from zip');
+
+      if (images.isEmpty && zipEntries.isNotEmpty) {
+        print('⚠️ No TIFF files found in ZIP (${zipEntries.length} total entries)');
+      }
+    } on TimeoutException {
+      print('❌ Timeout reading ZIP file: Operation took too long');
     } catch (e, stackTrace) {
-      print('Error loading images from zip $zipFileId: $e');
-      print(stackTrace);
+      final errorMsg = e.toString().toLowerCase();
+
+      // Provide specific error messages based on error type
+      if (errorMsg.contains('format') || errorMsg.contains('invalid') ||
+          errorMsg.contains('corrupt') || errorMsg.contains('magic')) {
+        print('❌ ZIP file appears to be corrupted or invalid: $e');
+        print('   Please check that the uploaded file is a valid ZIP archive');
+      } else if (errorMsg.contains('permission') || errorMsg.contains('access')) {
+        print('❌ Permission error accessing ZIP file: $e');
+        print('   The file may be locked or access rights are insufficient');
+      } else if (errorMsg.contains('not found') || errorMsg.contains('404')) {
+        print('❌ ZIP file not found: $e');
+        print('   The file may have been deleted or moved');
+      } else {
+        print('❌ Error loading images from ZIP: $e');
+        print('   Stack trace: $stackTrace');
+      }
     }
 
     return images;

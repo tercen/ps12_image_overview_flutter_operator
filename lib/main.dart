@@ -66,6 +66,17 @@ void main() async {
     print('   stepId: $stepId');
     print('   devZipFileId: $devZipFileId');
 
+    // Validate required parameters for production mode
+    if (taskId == null || taskId.isEmpty) {
+      print('❌ Error: Missing required parameter "taskId"');
+      runApp(_buildErrorApp(
+        'Missing Required Parameter',
+        'This operator requires a "taskId" parameter.\n\n'
+        'Please launch this operator from a Tercen workflow step.',
+      ));
+      return;
+    }
+
     // Set up service locator with real Tercen services
     setupServiceLocator(
       useMocks: false,
@@ -78,6 +89,64 @@ void main() async {
   }
 
   runApp(const MyApp());
+}
+
+/// Builds an error screen with a user-friendly message.
+Widget _buildErrorApp(String title, String message) {
+  return MaterialApp(
+    title: 'Image Overview - Error',
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.red,
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+    ),
+    home: Scaffold(
+      body: Center(
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Card(
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.red.shade700,
+                    size: 64,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade900,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
