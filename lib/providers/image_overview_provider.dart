@@ -3,15 +3,21 @@ import 'package:ps12_image_overview/di/service_locator.dart';
 import 'package:ps12_image_overview/models/image_collection.dart';
 import 'package:ps12_image_overview/models/filter_criteria.dart';
 import 'package:ps12_image_overview/services/image_service.dart';
+import 'package:ps12_image_overview/utils/task_lifecycle_manager.dart';
 
 /// Provider for managing image overview state.
 class ImageOverviewProvider extends ChangeNotifier {
   final ImageService _imageService = locator<ImageService>();
+  final TaskLifecycleManager? _lifecycleManager =
+      locator.isRegistered<TaskLifecycleManager>()
+          ? locator<TaskLifecycleManager>()
+          : null;
 
   ImageCollection _images = const ImageCollection(images: []);
   ImageCollection _allImages = const ImageCollection(images: []); // Store all images for filter options
   FilterCriteria _filters = const FilterCriteria();
   bool _isLoading = false;
+  bool _hasMarkedComplete = false;
   String? _error;
 
   ImageCollection get images => _images;
@@ -53,6 +59,12 @@ class ImageOverviewProvider extends ChangeNotifier {
         exposureTime: exposureTimes.isNotEmpty ? exposureTimes.last : null,
       );
       _images = await _imageService.filterImages(_filters);
+
+      // Mark task as complete after successful initial load
+      if (!_hasMarkedComplete && _lifecycleManager != null) {
+        await _lifecycleManager.markTaskComplete();
+        _hasMarkedComplete = true;
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -97,5 +109,12 @@ class ImageOverviewProvider extends ChangeNotifier {
   /// Clears all filters.
   Future<void> clearFilters() async {
     await applyFilters(const FilterCriteria());
+  }
+
+  @override
+  void dispose() {
+    // Clean up lifecycle manager
+    _lifecycleManager?.dispose();
+    super.dispose();
   }
 }

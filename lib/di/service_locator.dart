@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:ps12_image_overview/implementations/services/mock_image_service.dart';
 import 'package:ps12_image_overview/implementations/services/tercen_image_service.dart';
 import 'package:ps12_image_overview/services/image_service.dart';
+import 'package:ps12_image_overview/utils/task_lifecycle_manager.dart';
 import 'package:sci_tercen_client/sci_client_service_factory.dart';
 
 /// Global service locator instance.
@@ -58,15 +59,29 @@ void setupServiceLocator({
     locator.registerSingleton<ServiceFactory>(tercenFactory);
 
     // Register real image service using Tercen API
-    locator.registerSingleton<ImageService>(
-      TercenImageService(
-        tercenFactory,
-        taskId: taskId,
-        workflowId: workflowId,
-        stepId: stepId,
-        devZipFileId: devZipFileId,
-      ),
+    final imageService = TercenImageService(
+      tercenFactory,
+      taskId: taskId,
+      workflowId: workflowId,
+      stepId: stepId,
+      devZipFileId: devZipFileId,
     );
+    locator.registerSingleton<ImageService>(imageService);
+
+    // Register TaskLifecycleManager if taskId is provided
+    if (taskId != null && taskId.isNotEmpty) {
+      final lifecycleManager = TaskLifecycleManager(
+        taskId: taskId,
+        serviceFactory: tercenFactory,
+        onCancelled: () {
+          // Clean up image cache when task is cancelled
+          print('🧹 Clearing image cache due to cancellation...');
+          imageService.clearCache();
+        },
+      );
+      locator.registerSingleton<TaskLifecycleManager>(lifecycleManager);
+      print('✓ TaskLifecycleManager registered for taskId: $taskId');
+    }
   }
 }
 
