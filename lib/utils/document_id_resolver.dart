@@ -152,12 +152,14 @@ class DocumentIdResolver {
         print('      Column[$i]: name="${col.name}", type=${col.runtimeType}');
       }
 
-      // Check if documentId column exists
+      // Check for .documentId (fundamental), documentId (alias), and id columns
+      // Prefer .documentId as it contains the real FileDocument ID
+      final dotDocIdColumn = columnSchema.columns.where((col) => col.name == '.documentId').firstOrNull;
       final docIdColumn = columnSchema.columns.where((col) => col.name == 'documentId').firstOrNull;
       final idColumn = columnSchema.columns.where((col) => col.name == 'id').firstOrNull;
 
-      if (docIdColumn == null) {
-        print('   ⊘ No "documentId" column found in schema');
+      if (dotDocIdColumn == null && docIdColumn == null) {
+        print('   ⊘ No ".documentId" or "documentId" column found in schema');
 
         // Try 'id' column as fallback
         if (idColumn != null) {
@@ -181,11 +183,22 @@ class DocumentIdResolver {
         return null;
       }
 
-      print('   ✓ Found "documentId" column');
+      if (dotDocIdColumn != null) {
+        print('   ✓ Found ".documentId" column (fundamental)');
+      }
+      if (docIdColumn != null) {
+        print('   ✓ Found "documentId" column (alias)');
+      }
 
-      // Select both documentId and id columns if available - get first row only
+      // Select columns - prefer .documentId, then documentId, plus id if available
       print('   🔍 Fetching documentId data from table...');
-      final columnsToFetch = ['documentId'];
+      final columnsToFetch = <String>[];
+      if (dotDocIdColumn != null) {
+        columnsToFetch.add('.documentId');
+      }
+      if (docIdColumn != null) {
+        columnsToFetch.add('documentId');
+      }
       if (idColumn != null) {
         columnsToFetch.add('id');
         print('   ℹ️ Also fetching "id" column for comparison');
@@ -211,18 +224,32 @@ class DocumentIdResolver {
         print('   📋 Column "${col.name}": $firstValue');
       }
 
-      // Extract both documentId and id column values
+      // Extract documentId (prefer .documentId over documentId) and id column values
       String? documentIdValue;
       String? idValue;
 
-      // Get documentId column value
-      final docIdMatches = columnData.columns.where((c) => c.name == 'documentId');
-      if (docIdMatches.isNotEmpty) {
-        final docIdColData = docIdMatches.first;
-        if (docIdColData.values != null && docIdColData.values.isNotEmpty) {
-          documentIdValue = docIdColData.values.first?.toString();
+      // Prefer .documentId (fundamental) over documentId (alias)
+      final dotDocIdMatches = columnData.columns.where((c) => c.name == '.documentId');
+      if (dotDocIdMatches.isNotEmpty) {
+        final dotDocIdColData = dotDocIdMatches.first;
+        if (dotDocIdColData.values != null && dotDocIdColData.values.isNotEmpty) {
+          documentIdValue = dotDocIdColData.values.first?.toString();
           if (documentIdValue != null && documentIdValue.isNotEmpty) {
-            print('   ✓ Successfully extracted documentId: $documentIdValue');
+            print('   ✓ Successfully extracted .documentId (fundamental): $documentIdValue');
+          }
+        }
+      }
+
+      // Fall back to documentId (alias) if .documentId not found or empty
+      if (documentIdValue == null || documentIdValue.isEmpty) {
+        final docIdMatches = columnData.columns.where((c) => c.name == 'documentId');
+        if (docIdMatches.isNotEmpty) {
+          final docIdColData = docIdMatches.first;
+          if (docIdColData.values != null && docIdColData.values.isNotEmpty) {
+            documentIdValue = docIdColData.values.first?.toString();
+            if (documentIdValue != null && documentIdValue.isNotEmpty) {
+              print('   ✓ Successfully extracted documentId (alias): $documentIdValue');
+            }
           }
         }
       }
