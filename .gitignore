@@ -64,3 +64,6 @@ PTK_3project.zip
 
 # Chat review and conversation transcripts
 chat_review/
+
+# Local reference materials (not committed)
+_local/
