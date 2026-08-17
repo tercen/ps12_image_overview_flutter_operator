@@ -54,18 +54,25 @@ app.*.map.json
 /linux/
 /macos/
 
-# Local settings
-.claude/settings.local.json
+# Claude Code - local tooling and settings, never deployed
+.claude/
+
 
 # Temporary files
 nul
 
-# Technical specification
+# Specifications and design documents - kept in _local, not deployed
 FLUTTER_TECHNICAL_SPECIFICATION.md
+IMAGE_OVERVIEW_*.md
 PTK_3project.zip
 
 # Chat review and conversation transcripts
 chat_review/
 
-# Local reference materials (not committed)
+# Local reference materials, specs and dev utilities (not committed)
 _local/
+
+# Development-only scripts. Live in _local/dev-tools/ - they are debugging
+# helpers, not part of the deployed operator.
+/tool/
+/tools/
