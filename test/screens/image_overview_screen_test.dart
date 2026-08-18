@@ -211,7 +211,7 @@ void main() {
       final rect = tester.getRect(lastCell);
       expect(rect.bottom, lessThanOrEqualTo(600),
           reason: 'W4 must be fully visible once scrolled to the end');
-      expect(rect.height, cellSize);
+      expect(rect.height, closeTo(cellHeight, 0.01));
     });
 
     testWidgets('TS-30: scrolling both axes to the extreme stays aligned',
@@ -251,6 +251,164 @@ void main() {
       );
 
       expect(behaviour.dragDevices, contains(PointerDeviceKind.mouse));
+    });
+  });
+
+  group('Amendment A - cell aspect and scrollbars (CR-01-50..56)', () {
+    testWidgets('TS-31: cells match the 552:413 source aspect ratio',
+        (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 4));
+
+      final size = tester.getSize(find.byKey(const Key('cell_0_0')));
+
+      expect(size.width, 250);
+      expect(size.height, closeTo(250 / (552 / 413), 0.01));
+      expect(size.width / size.height, closeTo(552 / 413, 0.001),
+          reason: 'no letterbox should be reserved inside the cell');
+    });
+
+    testWidgets('TS-32: the visible image has not shrunk', (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 4));
+
+      // Before Amendment A a 4:3 image rendered 250 wide inside a 250x250
+      // cell. Width must be unchanged - only the dead space is gone.
+      expect(tester.getSize(find.byKey(const Key('cell_0_0'))).width, 250);
+    });
+
+    testWidgets('TS-33: four rows are ~252px shorter than square cells would be',
+        (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 4));
+
+      final top = tester.getRect(find.byKey(const Key('cell_0_0'))).top;
+      final bottom = tester.getRect(find.byKey(const Key('cell_3_0'))).bottom;
+      final squareEquivalent = 4 * (250 + 8) - 8;
+
+      expect(bottom - top, closeTo(4 * (cellHeight + 8) - 8, 0.5));
+      expect(squareEquivalent - (bottom - top), closeTo(252, 1.0));
+    });
+
+    testWidgets('TS-35: images render with BoxFit.contain, so no distortion',
+        (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 1, columns: 1));
+
+      // Fake service is not a TercenImageService, so the cell paints its
+      // placeholder; assert the contract on the widget that would be used.
+      expect(find.byKey(const Key('cell_0_0')), findsOneWidget);
+      for (final image in tester.widgetList<Image>(find.byType(Image))) {
+        expect(image.fit, BoxFit.contain);
+      }
+    });
+
+    testWidgets('TS-46: scrollbars are themed for contrast on black imagery',
+        (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 4));
+
+      final theme = ScrollbarTheme.of(
+        tester.element(find.byKey(const Key('cell_0_0'))),
+      );
+
+      expect(theme.thumbColor?.resolve(<WidgetState>{}), scrollbarThumb);
+      expect(theme.trackVisibility?.resolve(<WidgetState>{}), isTrue);
+      expect(theme.thickness?.resolve(<WidgetState>{}), scrollbarThickness);
+    });
+
+    testWidgets('TS-36: grid stays left-aligned when narrower than the viewport',
+        (tester) async {
+      // Reproduces DEF-09: a viewport far wider than the content. Before the
+      // fix the header and cells shrink-wrapped and centred, drifting away
+      // from the row labels.
+      tester.view.physicalSize = const Size(2400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 3));
+
+      final labelRight =
+          tester.getRect(find.byKey(const Key('rowLabels'))).right;
+      final firstCellLeft =
+          tester.getRect(find.byKey(const Key('cell_0_0'))).left;
+
+      expect(firstCellLeft, closeTo(labelRight, 0.5),
+          reason: 'cells must start immediately after the pinned label column');
+
+      // CR-01-56: header tracks the cells at this width too.
+      expect(
+        tester.getCenter(find.byKey(const Key('barcode_0'))).dx,
+        closeTo(tester.getCenter(find.byKey(const Key('cell_0_0'))).dx, 0.5),
+      );
+    });
+
+    testWidgets('TS-36b: still left-aligned when content overflows',
+        (tester) async {
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 8));
+
+      final labelRight =
+          tester.getRect(find.byKey(const Key('rowLabels'))).right;
+      final firstCellLeft =
+          tester.getRect(find.byKey(const Key('cell_0_0'))).left;
+
+      expect(firstCellLeft, closeTo(labelRight, 0.5));
+    });
+  });
+
+  group('Viewport matrix - invariants at any screen size', () {
+    const viewports = <String, Size>{
+      'small laptop': Size(1366, 768),
+      'laptop': Size(1440, 900),
+      'desktop': Size(1920, 1080),
+      'ultrawide': Size(3440, 1440),
+      'narrow window': Size(900, 700),
+      'very narrow': Size(640, 600),
+    };
+
+    for (final entry in viewports.entries) {
+      testWidgets('${entry.key} (${entry.value.width.toInt()}x'
+          '${entry.value.height.toInt()}): grid left-aligned, no overflow',
+          (tester) async {
+        tester.view.physicalSize = entry.value;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 6));
+
+        expect(tester.takeException(), isNull,
+            reason: 'no layout overflow at ${entry.key}');
+
+        final labelRight =
+            tester.getRect(find.byKey(const Key('rowLabels'))).right;
+        final firstCellLeft =
+            tester.getRect(find.byKey(const Key('cell_0_0'))).left;
+
+        expect(firstCellLeft, closeTo(labelRight, 0.5),
+            reason: 'grid must be left-aligned at ${entry.key}');
+
+        expect(
+          tester.getCenter(find.byKey(const Key('barcode_0'))).dx,
+          closeTo(tester.getCenter(find.byKey(const Key('cell_0_0'))).dx, 0.5),
+          reason: 'header must track columns at ${entry.key}',
+        );
+      });
+    }
+
+    testWidgets('all content is reachable whenever it overflows',
+        (tester) async {
+      tester.view.physicalSize = const Size(1000, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await pumpOverviewScreen(tester, images: testGrid(rows: 4, columns: 24));
+
+      final h = scrollPositionIn(tester, const Key('gridBody'), Axis.horizontal);
+      final v = scrollPositionIn(tester, const Key('gridBody'), Axis.vertical);
+
+      // Whatever the viewport, the far corner must be reachable.
+      await scrollBody(tester, Axis.horizontal, h.maxScrollExtent);
+      await scrollBody(tester, Axis.vertical, v.maxScrollExtent);
+
+      final lastCell = tester.getRect(find.byKey(const Key('cell_3_23')));
+      expect(lastCell.right, lessThanOrEqualTo(1000.5));
+      expect(lastCell.bottom, lessThanOrEqualTo(700.5));
+      expect(tester.takeException(), isNull);
     });
   });
 

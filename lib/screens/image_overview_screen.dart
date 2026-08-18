@@ -6,16 +6,32 @@ import 'package:ps12_image_overview/providers/image_overview_provider.dart';
 import 'package:ps12_image_overview/providers/theme_provider.dart';
 import 'package:ps12_image_overview/widgets/image_grid_cell.dart';
 
-/// Rendered size of one image. Fixed by design: four rows deliberately exceed
+/// Aspect ratio of a PS12 fluorescence image: 552 x 413 px, measured from
+/// instrument output rather than assumed.
+///
+/// Cells are shaped to match so nothing is spent on letterbox (CR-01-50). If a
+/// dataset ever carries differently-shaped images, BoxFit.contain still
+/// prevents distortion (CR-01-52) - such a cell simply letterboxes again.
+const double imageAspectRatio = 552 / 413;
+
+/// Rendered width of one image. Fixed by design: four rows deliberately exceed
 /// the viewport and are reached by scrolling rather than shrunk to fit (CR-01
 /// spec DEC-01, option A).
-const double cellSize = 250;
+const double cellWidth = 250;
+
+/// Rendered height, derived so the cell matches the image it holds.
+///
+/// Square 250x250 cells displayed these images at exactly 250x187 with 63px of
+/// invisible black letterbox, wasting 252px across four rows. Matching the
+/// ratio reclaims that at no cost to how large the image appears (CR-01-51).
+const double cellHeight = cellWidth / imageAspectRatio;
 
 /// Gap between adjacent cells, applied as trailing padding inside each slot.
 const double cellGutter = 8;
 
-/// Space occupied by one cell including its gutter.
-const double slotSize = cellSize + cellGutter;
+/// Space occupied by one cell including its gutter, per axis.
+const double slotWidth = cellWidth + cellGutter;
+const double slotHeight = cellHeight + cellGutter;
 
 /// Width of the pinned well-label column (W1, W2, ...).
 const double rowLabelWidth = 34;
@@ -39,6 +55,18 @@ const double filterBarHeight = 40;
 /// Tercen brand teal, carried by the title now that the AppBar is gone.
 const Color brandTeal = Color(0xFF005F75);
 const Color brandTealDark = Color(0xFF4DB8CC);
+
+/// Scrollbar colours (CR-01-53, CR-01-54).
+///
+/// The Material default is a dark translucent grey, which all but disappears
+/// over PS12 fluorescence images - they are predominantly black. A bright teal
+/// thumb over a light track keeps the affordance readable against the imagery
+/// it overlays, which is the entire point of showing it permanently.
+const Color scrollbarThumb = Color(0xFF4DB8CC);
+const Color scrollbarThumbHover = Color(0xFF7FD4E3);
+const Color scrollbarTrack = Color(0x26FFFFFF);
+const Color scrollbarTrackBorder = Color(0x40FFFFFF);
+const double scrollbarThickness = 12;
 
 /// Main screen displaying the image overview with filters and grid.
 ///
@@ -162,33 +190,48 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
       ),
       child: Row(
         children: [
-          Text(
-            'Image Overview',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: isDark ? brandTealDark : brandTeal,
+          // The title and filters scroll horizontally rather than overflow
+          // (CR-01-57). Target screen sizes are unknown, and at ~780px and
+          // below a fixed Row overflows. Expanded gives the scroll view a
+          // tight width, so its content stays left-aligned when it fits -
+          // the same trap that caused DEF-09.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Text(
+                    'Image Overview',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? brandTealDark : brandTeal,
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  _buildFilterLabel('Pump Cycle'),
+                  const SizedBox(width: 6),
+                  _buildDropdown(
+                    key: const Key('cycleDropdown'),
+                    value: provider.filters.cycle,
+                    items: provider.availableCycles.reversed.toList(),
+                    onChanged: provider.setCycleFilter,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildFilterLabel('Exposure Time'),
+                  const SizedBox(width: 6),
+                  _buildDropdown(
+                    key: const Key('exposureDropdown'),
+                    value: provider.filters.exposureTime,
+                    items: provider.availableExposureTimes.reversed.toList(),
+                    onChanged: provider.setExposureTimeFilter,
+                  ),
+                  // Keeps the last control clear of the pinned theme toggle.
+                  const SizedBox(width: 12),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 24),
-          _buildFilterLabel('Pump Cycle'),
-          const SizedBox(width: 6),
-          _buildDropdown(
-            key: const Key('cycleDropdown'),
-            value: provider.filters.cycle,
-            items: provider.availableCycles.reversed.toList(),
-            onChanged: provider.setCycleFilter,
-          ),
-          const SizedBox(width: 20),
-          _buildFilterLabel('Exposure Time'),
-          const SizedBox(width: 6),
-          _buildDropdown(
-            key: const Key('exposureDropdown'),
-            value: provider.filters.exposureTime,
-            items: provider.availableExposureTimes.reversed.toList(),
-            onChanged: provider.setExposureTimeFilter,
-          ),
-          const Spacer(),
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, child) {
               return IconButton(
@@ -309,6 +352,13 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
           _buildPinnedRowLabels(allRows),
           Expanded(
             child: Column(
+              // Must be stretch, not the default center (CR-01-55). Center
+              // hands children loose width constraints, and a
+              // SingleChildScrollView under loose constraints shrink-wraps to
+              // its content - so on a screen wider than the grid, the header
+              // and cells sized themselves to the content and were centred,
+              // drifting away from the row labels pinned at the left.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildPinnedColumnHeader(allColumns, barcodesByColumn),
                 const SizedBox(height: headerGap),
@@ -345,7 +395,7 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
               child: Column(
                 children: [
                   ...allRows.map((rowNumber) => SizedBox(
-                        height: slotSize,
+                        height: slotHeight,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: cellGutter),
                           // Key sits on the content box, not the slot, so it
@@ -395,7 +445,7 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
         child: Row(
           children: [
             ...allColumns.map((columnNumber) => SizedBox(
-                  width: slotSize,
+                  width: slotWidth,
                   child: Padding(
                     padding: const EdgeInsets.only(right: cellGutter),
                     // Key sits on the content box, not the slot, so it spans
@@ -445,55 +495,73 @@ class _ImageOverviewScreenState extends State<ImageOverviewScreen> {
           PointerDeviceKind.stylus,
         },
       ),
-      child: Scrollbar(
-        controller: _bodyVertical,
-        thumbVisibility: true,
-        interactive: true,
+      child: ScrollbarTheme(
+        data: ScrollbarThemeData(
+          thumbVisibility: const WidgetStatePropertyAll(true),
+          trackVisibility: const WidgetStatePropertyAll(true),
+          thickness: const WidgetStatePropertyAll(scrollbarThickness),
+          radius: const Radius.circular(6),
+          thumbColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.dragged)) {
+              return scrollbarThumbHover;
+            }
+            return scrollbarThumb;
+          }),
+          trackColor: const WidgetStatePropertyAll(scrollbarTrack),
+          trackBorderColor:
+              const WidgetStatePropertyAll(scrollbarTrackBorder),
+        ),
         child: Scrollbar(
-          controller: _bodyHorizontal,
+          controller: _bodyVertical,
           thumbVisibility: true,
           interactive: true,
-          scrollbarOrientation: ScrollbarOrientation.bottom,
-          notificationPredicate: (notification) => notification.depth == 1,
-          child: SingleChildScrollView(
-            controller: _bodyVertical,
+          child: Scrollbar(
+            controller: _bodyHorizontal,
+            thumbVisibility: true,
+            interactive: true,
+            scrollbarOrientation: ScrollbarOrientation.bottom,
+            notificationPredicate: (notification) => notification.depth == 1,
             child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              controller: _bodyHorizontal,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ...allRows.map((rowNumber) => Row(
-                        children: [
-                          ...allColumns.map((columnNumber) {
-                            final image =
-                                imagesByPosition['${rowNumber}_$columnNumber'];
+              controller: _bodyVertical,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                controller: _bodyHorizontal,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...allRows.map((rowNumber) => Row(
+                          children: [
+                            ...allColumns.map((columnNumber) {
+                              final image = imagesByPosition[
+                                  '${rowNumber}_$columnNumber'];
 
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                right: cellGutter,
-                                bottom: cellGutter,
-                              ),
-                              child: SizedBox(
-                                key: Key('cell_${rowNumber}_$columnNumber'),
-                                width: cellSize,
-                                height: cellSize,
-                                child: image != null
-                                    ? ImageGridCell(image: image)
-                                    : _buildEmptyCell(),
-                              ),
-                            );
-                          }),
-                          // Room for the vertical scrollbar at full right
-                          // scroll (CR-01-07).
-                          const SizedBox(width: scrollbarGutter),
-                        ],
-                      )),
-                  // Room for the horizontal scrollbar at full bottom scroll
-                  // (CR-01-07), and keeps this extent equal to the label
-                  // column's.
-                  const SizedBox(height: scrollbarGutter),
-                ],
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  right: cellGutter,
+                                  bottom: cellGutter,
+                                ),
+                                child: SizedBox(
+                                  key: Key('cell_${rowNumber}_$columnNumber'),
+                                  width: cellWidth,
+                                  height: cellHeight,
+                                  child: image != null
+                                      ? ImageGridCell(image: image)
+                                      : _buildEmptyCell(),
+                                ),
+                              );
+                            }),
+                            // Room for the vertical scrollbar at full right
+                            // scroll (CR-01-07).
+                            const SizedBox(width: scrollbarGutter),
+                          ],
+                        )),
+                    // Room for the horizontal scrollbar at full bottom scroll
+                    // (CR-01-07), and keeps this extent equal to the label
+                    // column's.
+                    const SizedBox(height: scrollbarGutter),
+                  ],
+                ),
               ),
             ),
           ),
